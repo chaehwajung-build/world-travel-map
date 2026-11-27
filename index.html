@@ -93,6 +93,7 @@
       height: 100%;
       display: block;
       background: var(--ocean);
+      touch-action: none;
     }
 
     .bottom-bar {
@@ -315,7 +316,8 @@
 const COUNTRY_ISO = {
   "대한민국":"410","한국":"410","south korea":"410","korea":"410",
   "일본":"392","japan":"392","중국":"156","china":"156","대만":"158","taiwan":"158",
-  "홍콩":"344","hong kong":"344","마카오":"446","macau":"446","싱가포르":"702","singapore":"702",
+  "홍콩":"344","hong kong":"344","hongkong":"344","마카오":"446","macau":"446","macao":"446",
+  "싱가포르":"702","singapore":"702",
   "태국":"764","thailand":"764","베트남":"704","vietnam":"704","말레이시아":"458","malaysia":"458",
   "인도네시아":"360","indonesia":"360","필리핀":"608","philippines":"608","캄보디아":"116","cambodia":"116",
   "라오스":"418","laos":"418","인도":"356","india":"356","네팔":"524","nepal":"524",
@@ -343,8 +345,10 @@ const CITY_LONLAT = {
   "제주":[126.531,33.499],"jeju":[126.531,33.499],"도쿄":[139.691,35.689],"tokyo":[139.691,35.689],
   "오사카":[135.502,34.693],"osaka":[135.502,34.693],"교토":[135.768,35.011],"후쿠오카":[130.401,33.590],
   "삿포로":[141.354,43.061],"베이징":[116.407,39.904],"상하이":[121.473,31.230],"shanghai":[121.473,31.230],
-  "타이베이":[121.565,25.033],"taipei":[121.565,25.033],"홍콩":[114.169,22.319],"hong kong":[114.169,22.319],
-  "마카오":[113.543,22.198],"싱가포르":[103.819,1.352],"singapore":[103.819,1.352],
+  "타이베이":[121.565,25.033],"taipei":[121.565,25.033],
+  "홍콩":[114.169,22.319],"hong kong":[114.169,22.319],"hongkong":[114.169,22.319],
+  "마카오":[113.543,22.198],"macau":[113.543,22.198],"macao":[113.543,22.198],
+  "싱가포르":[103.819,1.352],"singapore":[103.819,1.352],
   "방콕":[100.501,13.756],"bangkok":[100.501,13.756],"치앙마이":[98.985,18.788],"chiang mai":[98.985,18.788],
   "푸켓":[98.392,7.880],"하노이":[105.834,21.027],"호치민":[106.629,10.823],"다낭":[108.202,16.054],
   "쿠알라룸푸르":[101.686,3.139],"발리":[115.188,-8.409],"자카르타":[106.845,-6.208],"마닐라":[120.984,14.599],
@@ -353,6 +357,10 @@ const CITY_LONLAT = {
   // 미국 주요 도시 및 동명 도시 (도시, 주 약어)
   "샌프란시스코":[-122.419,37.774],"san francisco":[-122.419,37.774],"san francisco, ca":[-122.419,37.774],
   "로스앤젤레스":[-118.243,34.052],"la":[-118.243,34.052],"los angeles":[-118.243,34.052],"los angeles, ca":[-118.243,34.052],
+  "몬터레이":[-121.894,36.600],"monterey":[-121.894,36.600],"monterey, ca":[-121.894,36.600],
+  "프리몬트":[-121.988,37.548],"fremont":[-121.988,37.548],"fremont, ca":[-121.988,37.548],
+  "샌디에이고":[-117.161,32.715],"san diego":[-117.161,32.715],"san diego, ca":[-117.161,32.715],
+  "애너하임":[-117.914,33.836],"anaheim":[-117.914,33.836],"anaheim, ca":[-117.914,33.836],
   "라스베이거스":[-115.139,36.169],"las vegas":[-115.139,36.169],"las vegas, nv":[-115.139,36.169],
   "뉴욕":[-74.006,40.712],"new york":[-74.006,40.712],"new york, ny":[-74.006,40.712],
   "시애틀":[-122.332,47.606],"seattle":[-122.332,47.606],"seattle, wa":[-122.332,47.606],
@@ -360,9 +368,13 @@ const CITY_LONLAT = {
   "portland, me":[-70.255,43.659],"springfield, il":[-89.650,39.781],"springfield, mo":[-93.292,37.209],
   "springfield, ma":[-72.589,42.101],"columbus, oh":[-82.998,39.961],"columbus, ga":[-84.987,32.461],
   "richmond, va":[-77.436,37.540],"richmond, ca":[-122.347,37.935],"jackson, ms":[-90.184,32.298],
-  "포틀랜드, or":[-122.676,45.523],"포틀랜드, me":[-70.255,43.659],
-  "시카고":[-87.629,41.878],"chicago, il":[-87.629,41.878],"워싱턴":[-77.036,38.907],"washington, dc":[-77.036,38.907],
-  "보스턴":[-71.058,42.360],"boston, ma":[-71.058,42.360],"호놀룰루":[-157.858,21.306],"honolulu, hi":[-157.858,21.306],
+  "jackson, wy":[-110.762,43.479],"salt lake city, ut":[-111.891,40.760],"moab, ut":[-109.549,38.573],
+  "springdale, ut":[-112.999,37.188],"page, az":[-111.455,36.914],"flagstaff, az":[-111.651,35.198],
+  "denver, co":[-104.990,39.739],"austin, tx":[-97.743,30.267],"houston, tx":[-95.369,29.760],
+  "dallas, tx":[-96.797,32.776],"miami, fl":[-80.191,25.761],"orlando, fl":[-81.379,28.538],
+  "atlanta, ga":[-84.388,33.749],"nashville, tn":[-86.781,36.162],"new orleans, la":[-90.071,29.951],
+  "chicago, il":[-87.629,41.878],"washington, dc":[-77.036,38.907],"boston, ma":[-71.058,42.360],
+  "호놀룰루":[-157.858,21.306],"honolulu, hi":[-157.858,21.306],
   "밴쿠버":[-123.120,49.282],"vancouver":[-123.120,49.282],"토론토":[-79.383,43.653],"몬트리올":[-73.567,45.501],
   "런던":[-0.127,51.507],"london":[-0.127,51.507],"에든버러":[-3.188,55.953],"파리":[2.352,48.856],"paris":[2.352,48.856],
   "roissy en france":[2.517,49.004],"roissy-en-france":[2.517,49.004],"루아시":[2.517,49.004],"샤를드골":[2.547,49.009],
@@ -420,7 +432,7 @@ function resizeCanvas() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-// 쉼표로 구분된 도시 문자열에서 "도시, 주(2글자 약어)" 형태를 보존하며 분리
+// 쉼표로 구분된 도시 문자열에서 "도시, 주(2자리 영문 약어)" 형태를 보존하며 분리
 function splitCityTokens(rawCities) {
   if (!rawCities) return [];
   const text = Array.isArray(rawCities) ? rawCities.join(", ") : String(rawCities);
@@ -433,7 +445,6 @@ function splitCityTokens(rawCities) {
     while (i < items.length) {
       const cur = items[i];
       const next = items[i + 1];
-      // 다음 항목이 미국 주 약어(2자리 영문)면 "도시, 주"로 결합
       if (next && /^[A-Za-z]{2}$/.test(next)) {
         tokens.push(`${cur}, ${next.toUpperCase()}`);
         i += 2;
@@ -461,6 +472,9 @@ function resolveIso(name) {
 function resolveCoords(city, iso) {
   const k = city.trim().toLowerCase();
   if (CITY_LONLAT[k]) return CITY_LONLAT[k];
+  // 공백 제거 표기(예: hongkong -> hong kong) 대응
+  const compact = k.replace(/\s+/g, "");
+  if (CITY_LONLAT[compact]) return CITY_LONLAT[compact];
   // "도시, 주" 형태에서 주를 뺀 도시명 fallback
   const baseCity = k.replace(/\s*,\s*[a-z]{2}$/, "").trim();
   if (baseCity && CITY_LONLAT[baseCity]) return CITY_LONLAT[baseCity];
@@ -634,7 +648,6 @@ function renderAll() {
 
   lastHitTargets = [];
 
-  // 확대 시 모든 국가명(영문): 최소 10px 이상으로 읽기 쉽게 유지
   if (scaleFactor >= 1.8) {
     const cFontSize = Math.max(10, Math.min(13, 12.5 / Math.pow(scaleFactor, 0.08)));
     ctx.font = `600 ${cFontSize.toFixed(1)}px -apple-system, sans-serif`;
@@ -661,7 +674,6 @@ function renderAll() {
     });
   }
 
-  // 도시 마커 및 확대 시 도시명: 최소 11.5px 이상으로 선명히 유지
   if (filterMode !== "planned") {
     const canShowCityLabel = showLabels && (viewMode === "3d" || scaleFactor >= 1.5);
     const lblFont = Math.max(11.5, Math.min(13.5, 13 / Math.pow(scaleFactor, 0.06)));
@@ -764,36 +776,91 @@ function handleMapTap(clientX, clientY) {
 }
 
 function bindGestures() {
-  let startX = 0, startY = 0, moved = false;
+  let activePointers = new Map();
+  let lastSinglePos = null;
+  let lastPinchDist = null;
+  let downX = 0, downY = 0, didDrag = false;
 
   canvas.addEventListener("pointerdown", (e) => {
-    startX = e.clientX;
-    startY = e.clientY;
-    moved = false;
-  });
-  canvas.addEventListener("pointermove", (e) => {
-    if (Math.hypot(e.clientX - startX, e.clientY - startY) > 6) moved = true;
-  });
-  canvas.addEventListener("pointerup", (e) => {
-    if (!moved) handleMapTap(e.clientX, e.clientY);
-  });
+    canvas.setPointerCapture(e.pointerId);
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    downX = e.clientX;
+    downY = e.clientY;
+    didDrag = false;
 
-  zoomBehavior = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
-    currentTransform = ev.transform;
-    scheduleRender();
-  });
-
-  const drag = d3.drag().on("drag", (ev) => {
-    if (viewMode === "3d") {
-      globeRotate = [
-        globeRotate[0] + ev.dx * 0.35,
-        Math.max(-85, Math.min(85, globeRotate[1] - ev.dy * 0.35))
-      ];
-      scheduleRender();
+    if (activePointers.size === 1) {
+      lastSinglePos = { x: e.clientX, y: e.clientY };
+      lastPinchDist = null;
+    } else if (activePointers.size === 2) {
+      const pts = Array.from(activePointers.values());
+      lastPinchDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+      lastSinglePos = null;
     }
   });
 
-  d3.select(canvas).call(zoomBehavior).call(drag);
+  canvas.addEventListener("pointermove", (e) => {
+    if (!activePointers.has(e.pointerId)) return;
+    activePointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (Math.hypot(e.clientX - downX, e.clientY - downY) > 6) {
+      didDrag = true;
+    }
+
+    if (viewMode === "3d") {
+      if (activePointers.size === 1 && lastSinglePos) {
+        const dx = e.clientX - lastSinglePos.x;
+        const dy = e.clientY - lastSinglePos.y;
+        lastSinglePos = { x: e.clientX, y: e.clientY };
+        globeRotate = [
+          globeRotate[0] + dx * 0.45,
+          Math.max(-85, Math.min(85, globeRotate[1] - dy * 0.45))
+        ];
+        scheduleRender();
+      } else if (activePointers.size === 2) {
+        const pts = Array.from(activePointers.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        if (lastPinchDist && dist > 0) {
+          const nextK = Math.max(0.7, Math.min(6, (currentTransform.k || 1) * (dist / lastPinchDist)));
+          currentTransform = d3.zoomIdentity.scale(nextK);
+          scheduleRender();
+        }
+        lastPinchDist = dist;
+      }
+    }
+  });
+
+  function onPointerFinish(e) {
+    const wasTap = !didDrag && activePointers.size === 1 && activePointers.has(e.pointerId);
+    if (canvas.hasPointerCapture(e.pointerId)) {
+      canvas.releasePointerCapture(e.pointerId);
+    }
+    activePointers.delete(e.pointerId);
+    if (activePointers.size === 1) {
+      const only = Array.from(activePointers.values())[0];
+      lastSinglePos = { x: only.x, y: only.y };
+      lastPinchDist = null;
+    } else if (activePointers.size === 0) {
+      lastSinglePos = null;
+      lastPinchDist = null;
+      if (wasTap) handleMapTap(e.clientX, e.clientY);
+    }
+  }
+
+  canvas.addEventListener("pointerup", onPointerFinish);
+  canvas.addEventListener("pointercancel", onPointerFinish);
+
+  zoomBehavior = d3.zoom()
+    .scaleExtent([1, 40])
+    .filter((ev) => {
+      if (viewMode === "3d") return ev.type === "wheel";
+      return (!ev.ctrlKey || ev.type === "wheel") && !ev.button;
+    })
+    .on("zoom", (ev) => {
+      currentTransform = ev.transform;
+      scheduleRender();
+    });
+
+  d3.select(canvas).call(zoomBehavior);
 }
 
 function setFilter(mode) {
