@@ -86,11 +86,13 @@
     svg { width: 100%; height: 100%; display: block; }
     .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; }
     .country-label {
-      fill: rgba(248, 250, 252, 0.9);
+      fill: #f8fafc;
+      stroke: #070d19;
+      stroke-width: 2.2px;
+      paint-order: stroke fill;
       font-weight: 600;
       text-anchor: middle;
       dominant-baseline: central;
-      text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 0 2px #000;
       pointer-events: none;
     }
     .city-marker { cursor: pointer; }
@@ -105,8 +107,10 @@
     }
     .city-label {
       fill: #fef08a;
+      stroke: #070d19;
+      stroke-width: 2.4px;
+      paint-order: stroke fill;
       font-weight: 600;
-      text-shadow: 0 1px 3px #000, 0 0 2px #000;
       pointer-events: none;
     }
 
@@ -397,15 +401,14 @@ let worldFeatures = null;
 let filterMode = "all";
 let viewMode = "2d";
 let showLabels = true;
-let scaleFactor = 1;
+let currentTransform = d3.zoomIdentity;
 let globeRotate = [0, -15];
 
 const svg = d3.select("#svg-map");
-const gRoot = svg.append("g");
-const gLand = gRoot.append("g");
-const gCountryLabels = gRoot.append("g");
-const gCities = gRoot.append("g");
-let projection, geoPath;
+const gLand = svg.append("g");
+const gCountryLabels = svg.append("g");
+const gCities = svg.append("g");
+let projection, geoPath, zoomBehavior;
 
 function resolveIso(name) {
   if (!name) return null;
@@ -513,8 +516,9 @@ function updateProjection() {
       .scale(baseScale)
       .translate([w / 2, h * 0.54]);
   } else {
+    const k = currentTransform.k || 1;
     projection = d3.geoOrthographic()
-      .scale(Math.min(w, h) * 0.48 * scaleFactor)
+      .scale(Math.min(w, h) * 0.48 * k)
       .translate([w / 2, h / 2])
       .rotate(globeRotate)
       .clipAngle(90);
@@ -522,22 +526,33 @@ function updateProjection() {
   geoPath = d3.geoPath().projection(projection);
 }
 
+function toScreenPoint(lonlat) {
+  const basePt = projection(lonlat);
+  if (!basePt || Number.isNaN(basePt[0]) || Number.isNaN(basePt[1])) return null;
+  if (viewMode === "2d") {
+    return currentTransform.apply(basePt);
+  }
+  return basePt;
+}
+
 function renderAll() {
   if (!worldFeatures) return;
   updateProjection();
 
   const { visitCountByIso, plannedIsos, cityMarkers } = computeAggregations();
+  const scaleFactor = viewMode === "2d" ? currentTransform.k : 1;
 
   document.getElementById("stats").textContent =
     `방문 ${visitCountByIso.size}개국 · 예정 ${plannedIsos.size}개국 · 도시 ${cityMarkers.length}곳`;
 
   const landSel = gLand.selectAll("path.country").data(worldFeatures, d => d.id);
-  landSel.enter()
+  const landMerged = landSel.enter()
     .append("path")
     .attr("class", "country")
     .merge(landSel)
     .attr("d", geoPath)
-    .style("stroke-width", viewMode === "2d" ? `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor))}px` : "0.5px")
+    .attr("transform", viewMode === "2d" ? currentTransform.toString() : null)
+    .style("stroke-width", `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor))}px`)
     .style("fill", d => {
       const iso = String(d.id).padStart(3, "0");
       const vCount = visitCountByIso.get(iso) || 0;
@@ -577,22 +592,21 @@ function renderAll() {
       box.style.display = "block";
     });
 
-  // 중복 방지: 매 렌더링마다 라벨/핀 레이어를 초기화 후 새로 생성
   gCountryLabels.selectAll("*").remove();
   gCities.selectAll("*").remove();
 
-  const zoomRatio = viewMode === "2d" ? scaleFactor : 1;
-  if (zoomRatio >= 1.8) {
-    const cFontSize = Math.max(2.0, 8.2 / Math.pow(zoomRatio, 0.72));
+  if (scaleFactor >= 1.8) {
+    const cFontSize = Math.max(6.5, 11.5 / Math.pow(scaleFactor, 0.28));
     worldFeatures.forEach(f => {
       if (!f.properties || !f.properties.name) return;
       const centroid = d3.geoCentroid(f);
-      const pt = projection(centroid);
-      if (!pt || Number.isNaN(pt[0]) || Number.isNaN(pt[1])) return;
       if (viewMode === "3d") {
         const dist = d3.geoDistance(centroid, [-globeRotate[0], -globeRotate[1]]);
         if (dist >= Math.PI / 2) return;
       }
+      const pt = toScreenPoint(centroid);
+      if (!pt) return;
+
       gCountryLabels.append("text")
         .attr("class", "country-label")
         .attr("x", pt[0])
@@ -604,22 +618,20 @@ function renderAll() {
 
   if (filterMode !== "planned") {
     const canShowCityLabel = showLabels && (viewMode === "3d" || scaleFactor >= 1.5);
-    const lblFont = viewMode === "2d" ? Math.max(1.7, 7.0 / Math.pow(scaleFactor, 0.72)) : 9;
+    const lblFont = Math.max(7.5, 12 / Math.pow(scaleFactor, 0.25));
 
     cityMarkers.forEach(d => {
-      const pt = projection(d.coords);
-      if (!pt || Number.isNaN(pt[0]) || Number.isNaN(pt[1])) return;
       if (viewMode === "3d") {
         const dist = d3.geoDistance(d.coords, [-globeRotate[0], -globeRotate[1]]);
         if (dist >= Math.PI / 2) return;
       }
+      const pt = toScreenPoint(d.coords);
+      if (!pt) return;
 
       const isMulti = d.count >= 2;
-      const r = viewMode === "2d"
-        ? Math.max(1.0, (isMulti ? 5.0 : 2.8) / Math.pow(scaleFactor, 0.68))
-        : (isMulti ? 6.5 : 3.8);
-      const strokeW = viewMode === "2d" ? Math.max(0.3, 1.0 / Math.pow(scaleFactor, 0.6)) : 1.1;
-      const badgeFont = viewMode === "2d" ? Math.max(1.5, 7.2 / Math.pow(scaleFactor, 0.72)) : 9;
+      const r = Math.max(2.6, (isMulti ? 8.5 : 4.6) / Math.pow(scaleFactor, 0.35));
+      const strokeW = Math.max(0.8, 1.4 / Math.pow(scaleFactor, 0.25));
+      const badgeFont = Math.max(7, 10.5 / Math.pow(scaleFactor, 0.3));
 
       const grp = gCities.append("g")
         .attr("class", "city-marker")
@@ -640,8 +652,8 @@ function renderAll() {
       if (canShowCityLabel) {
         grp.append("text")
           .attr("class", "city-label")
-          .attr("x", r + Math.max(1.1, 2.6 / Math.pow(scaleFactor, 0.65)))
-          .attr("y", 1.5)
+          .attr("x", r + 4)
+          .attr("y", 2)
           .style("font-size", `${lblFont}px`)
           .text(d.city);
       }
@@ -650,12 +662,9 @@ function renderAll() {
 }
 
 function bindGestures() {
-  const zoom = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
-    if (viewMode === "2d") {
-      scaleFactor = ev.transform.k;
-      gRoot.attr("transform", ev.transform);
-      renderAll();
-    }
+  zoomBehavior = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
+    currentTransform = ev.transform;
+    renderAll();
   });
   const drag = d3.drag().on("drag", (ev) => {
     if (viewMode === "3d") {
@@ -666,7 +675,7 @@ function bindGestures() {
       renderAll();
     }
   });
-  svg.call(zoom).call(drag);
+  svg.call(zoomBehavior).call(drag);
 }
 
 function setFilter(mode) {
@@ -686,10 +695,9 @@ function setMode(m) {
 }
 
 function resetCamera() {
-  scaleFactor = 1;
+  currentTransform = d3.zoomIdentity;
   globeRotate = [0, -15];
-  gRoot.attr("transform", null);
-  svg.call(d3.zoom().transform, d3.zoomIdentity);
+  if (zoomBehavior) svg.call(zoomBehavior.transform, d3.zoomIdentity);
   renderAll();
 }
 
