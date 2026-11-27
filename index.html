@@ -38,23 +38,23 @@
     header {
       background: rgba(22, 32, 51, 0.96);
       border-bottom: 1px solid var(--border);
-      padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+      padding: calc(env(safe-area-inset-top) + 7px) 12px 7px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
       z-index: 20;
     }
-    .brand h1 { margin: 0; font-size: 15px; font-weight: 700; }
-    .stats { font-size: 11.5px; color: #6ee7b7; margin-top: 2px; font-weight: 600; }
+    .brand h1 { margin: 0; font-size: 14.5px; font-weight: 700; }
+    .stats { font-size: 11px; color: #6ee7b7; margin-top: 2px; font-weight: 600; }
     .btn-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
     button {
       background: #24334d;
       color: var(--text);
       border: 1px solid #3b5075;
       border-radius: 7px;
-      padding: 6px 9px;
-      font-size: 11.5px;
+      padding: 5px 8px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
     }
@@ -65,28 +65,37 @@
     .filter-strip {
       background: #111929;
       border-bottom: 1px solid var(--border);
-      padding: 6px 12px;
+      padding: 5px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      font-size: 11.5px;
+      gap: 6px;
+      font-size: 11px;
       z-index: 19;
+      flex-wrap: wrap;
     }
     .seg-group { display: flex; gap: 4px; }
-    .seg-group button { padding: 4px 9px; font-size: 11px; }
+    .seg-group button { padding: 4px 8px; font-size: 11px; }
     .seg-group button.active-all { background: #334155; border-color: #94a3b8; color: #fff; }
     .seg-group button.active-visited { background: #059669; border-color: #34d399; color: #ecfdf5; }
     .seg-group button.active-planned { background: #2563eb; border-color: #60a5fa; color: #eff6ff; }
-    .legend { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
-    .dot-sample { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+    .legend { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10.5px; }
+    .dot-sample { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
 
     #map-wrap { flex: 1; position: relative; background: var(--ocean); overflow: hidden; touch-action: none; }
     svg { width: 100%; height: 100%; display: block; }
-    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; transition: fill 0.15s; }
+    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; }
+    .country-label {
+      fill: rgba(248, 250, 252, 0.88);
+      font-weight: 600;
+      text-anchor: middle;
+      dominant-baseline: central;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.95), 0 0 2px #000;
+      pointer-events: none;
+    }
     .city-marker { cursor: pointer; }
-    .city-dot { fill: var(--city-red); stroke: #fff; stroke-width: 1.2px; }
-    .city-badge { fill: var(--city-red); stroke: #fff; stroke-width: 1.2px; }
+    .city-dot { fill: var(--city-red); stroke: #fff; }
+    .city-badge { fill: var(--city-red); stroke: #fff; }
     .city-count {
       fill: #fff;
       font-weight: 700;
@@ -95,7 +104,7 @@
       pointer-events: none;
     }
     .city-label {
-      fill: #f1f5f9;
+      fill: #fef08a;
       font-weight: 600;
       text-shadow: 0 1px 3px #000, 0 0 2px #000;
       pointer-events: none;
@@ -284,10 +293,10 @@
       <button onclick="closeModal('numbers-modal')">닫기</button>
     </div>
     <div class="modal-body">
-      <div>형식: <b>국가 | 도시(쉼표 구분) | 구분(방문/예정) | 메모</b></div>
+      <div>형식: <b>국가 | 도시(쉼표 구분) | 구분(방문/예정) | 메모</b><br>동일 기록은 자동 중복 방지됩니다.</div>
       <textarea id="numbers-io">국가	도시	구분	메모</textarea>
       <div class="row">
-        <button class="primary" onclick="importNumbers(false)">기존에 추가</button>
+        <button class="primary" onclick="importNumbers(false)">중복 제외하고 추가</button>
         <button onclick="importNumbers(true)">전체 덮어쓰기</button>
       </div>
       <div class="row">
@@ -355,17 +364,19 @@ const CITY_LONLAT = {
   "쿠알라룸푸르":[101.686,3.139],"발리":[115.188,-8.409],"자카르타":[106.845,-6.208],"마닐라":[120.984,14.599],
   "세부":[123.885,10.315],"씨엠립":[103.856,13.363],"델리":[77.209,28.613],"뭄바이":[72.877,19.076],
   "두바이":[55.270,25.204],"dubai":[55.270,25.204],"이스탄불":[28.978,41.008],"istanbul":[28.978,41.008],
-  "샌프란시스코":[-122.419,37.774],"san francisco":[-122.419,37.774],"로스앤젤레스":[-118.243,34.052],"la":[-118.243,34.052],
+  "샌프란시스코":[-122.419,37.774],"san francisco":[-122.419,37.774],"로스앤젤레스":[-118.243,34.052],"la":[-118.243,34.052],"los angeles":[-118.243,34.052],
   "라스베이거스":[-115.139,36.169],"las vegas":[-115.139,36.169],"뉴욕":[-74.006,40.712],"new york":[-74.006,40.712],
   "시애틀":[-122.332,47.606],"seattle":[-122.332,47.606],"포틀랜드":[-122.678,45.515],"시카고":[-87.629,41.878],
   "워싱턴":[-77.036,38.907],"보스턴":[-71.058,42.360],"호놀룰루":[-157.858,21.306],
   "밴쿠버":[-123.120,49.282],"vancouver":[-123.120,49.282],"토론토":[-79.383,43.653],"몬트리올":[-73.567,45.501],
   "런던":[-0.127,51.507],"london":[-0.127,51.507],"에든버러":[-3.188,55.953],"파리":[2.352,48.856],"paris":[2.352,48.856],
+  "roissy en france":[2.517,49.004],"roissy-en-france":[2.517,49.004],"루아시":[2.517,49.004],"샤를드골":[2.547,49.009],
   "니스":[7.261,43.710],"리옹":[4.835,45.764],"프랑크푸르트":[8.682,50.110],"뮌헨":[11.582,48.135],"베를린":[13.405,52.520],
   "로마":[12.496,41.902],"rome":[12.496,41.902],"밀라노":[9.190,45.464],"베네치아":[12.315,45.440],"피렌체":[11.255,43.769],
   "마드리드":[-3.703,40.416],"바르셀로나":[2.173,41.385],"barcelona":[2.173,41.385],"세비야":[-5.984,37.389],
   "리스본":[-9.139,38.722],"lisbon":[-9.139,38.722],"포르투":[-8.629,41.157],"porto":[-8.629,41.157],
-  "빌라노바드가이아":[-8.616,41.123],"취리히":[8.541,47.376],"제네바":[6.143,46.204],"인터라켄":[7.863,46.686],
+  "빌라노바드가이아":[-8.616,41.123],"가이아":[-8.616,41.123],"vila nova de gaia":[-8.616,41.123],"피냐옹":[-7.542,41.189],"pinhao":[-7.542,41.189],
+  "취리히":[8.541,47.376],"제네바":[6.143,46.204],"인터라켄":[7.863,46.686],
   "빈":[16.373,48.208],"비엔나":[16.373,48.208],"잘츠부르크":[13.055,47.809],"암스테르담":[4.904,52.367],
   "브뤼셀":[4.351,50.850],"프라하":[14.437,50.075],"prague":[14.437,50.075],"부다페스트":[19.040,47.497],
   "바르샤바":[21.012,52.229],"크라쿠프":[19.944,50.064],"아테네":[23.727,37.983],"산토리니":[25.461,36.393],
@@ -381,18 +392,18 @@ const CITY_LONLAT = {
 const DATA_KEY = "wtm_records_v2";
 const ATLAS_KEY = "wtm_atlas_110m_v1";
 
-// 각 항목: { country, iso, cities: [], status: "방문" | "예정", note: "" }
 let records = JSON.parse(localStorage.getItem(DATA_KEY)) || [];
 let worldFeatures = null;
 let filterMode = "all"; // 'all' | 'visited' | 'planned'
 let viewMode = "2d";    // '2d' | '3d'
 let showLabels = true;
 let scaleFactor = 1;
-let globeRotate = [0, -20];
+let globeRotate = [0, -15];
 
 const svg = d3.select("#svg-map");
 const gRoot = svg.append("g");
 const gLand = gRoot.append("g");
+const gCountryLabels = gRoot.append("g");
 const gCities = gRoot.append("g");
 let projection, geoPath;
 
@@ -423,10 +434,18 @@ function normalizeStatus(raw) {
   return "방문";
 }
 
+function recordSignature(r) {
+  const iso = r.iso || resolveIso(r.country) || "";
+  const st = normalizeStatus(r.status);
+  const citiesSorted = Array.from(new Set((r.cities || []).map(c => c.trim().toLowerCase()).filter(Boolean))).sort().join(",");
+  const noteNorm = (r.note || "").trim().toLowerCase();
+  return `${iso}|${st}|${citiesSorted}|${noteNorm}`;
+}
+
 function computeAggregations() {
   const visitCountByIso = new Map();
   const plannedIsos = new Set();
-  const cityCountMap = new Map(); // key: iso + "_" + cityLower -> { city, iso, count, coords }
+  const cityCountMap = new Map();
 
   records.forEach(r => {
     const iso = r.iso || resolveIso(r.country);
@@ -435,7 +454,6 @@ function computeAggregations() {
 
     if (st === "방문") {
       visitCountByIso.set(iso, (visitCountByIso.get(iso) || 0) + 1);
-      // 한 번의 방문 기록 내 중복 도시명은 1회로 처리
       const uniqueCitiesInTrip = Array.from(new Set((r.cities || []).map(c => c.trim()).filter(Boolean)));
       uniqueCitiesInTrip.forEach(city => {
         const coords = resolveCoords(city, iso);
@@ -457,9 +475,8 @@ function computeAggregations() {
 }
 
 function getVisitedColor(count) {
-  // 방문 횟수가 늘수록 연한 에메랄드에서 짙은 녹색으로 농도 증가
   const clamped = Math.min(Math.max(count, 1), 6);
-  const t = (clamped - 1) / 5; // 0 ~ 1
+  const t = (clamped - 1) / 5;
   return d3.interpolateRgb("#6ee7b7", "#047857")(t);
 }
 
@@ -476,7 +493,9 @@ async function init() {
       topo = await resp.json();
       try { localStorage.setItem(ATLAS_KEY, JSON.stringify(topo)); } catch (_) {}
     }
-    worldFeatures = topojson.feature(topo, topo.objects.countries).features;
+    const rawFeatures = topojson.feature(topo, topo.objects.countries).features;
+    // 남극 제외하여 지도가 화면을 더 크게 채우도록 구성
+    worldFeatures = rawFeatures.filter(f => String(f.id).padStart(3, "0") !== "010");
     document.getElementById("status-msg").style.display = "none";
     bindGestures();
     renderAll();
@@ -490,10 +509,13 @@ function updateProjection() {
   const w = document.getElementById("map-wrap").clientWidth;
   const h = document.getElementById("map-wrap").clientHeight;
   if (viewMode === "2d") {
-    projection = d3.geoNaturalEarth1().scale(w / 5.4).translate([w / 2, h / 2]);
+    const baseScale = Math.max(w / 4.4, h / 2.6);
+    projection = d3.geoNaturalEarth1()
+      .scale(baseScale)
+      .translate([w / 2, h * 0.54]);
   } else {
     projection = d3.geoOrthographic()
-      .scale(Math.min(w, h) * 0.43 * scaleFactor)
+      .scale(Math.min(w, h) * 0.48 * scaleFactor)
       .translate([w / 2, h / 2])
       .rotate(globeRotate)
       .clipAngle(90);
@@ -516,18 +538,14 @@ function renderAll() {
     .attr("class", "country")
     .merge(landSel)
     .attr("d", geoPath)
+    .style("stroke-width", viewMode === "2d" ? `${Math.max(0.15, 0.55 / Math.sqrt(scaleFactor))}px` : "0.5px")
     .style("fill", d => {
       const iso = String(d.id).padStart(3, "0");
       const vCount = visitCountByIso.get(iso) || 0;
       const isPlanned = plannedIsos.has(iso);
 
-      if (filterMode === "visited") {
-        return vCount > 0 ? getVisitedColor(vCount) : "var(--land)";
-      }
-      if (filterMode === "planned") {
-        return isPlanned ? "var(--planned)" : "var(--land)";
-      }
-      // 전체 보기: 방문국 초록 우선, 방문 없는 예정국 파란색
+      if (filterMode === "visited") return vCount > 0 ? getVisitedColor(vCount) : "var(--land)";
+      if (filterMode === "planned") return isPlanned ? "var(--planned)" : "var(--land)";
       if (vCount > 0) return getVisitedColor(vCount);
       if (isPlanned) return "var(--planned)";
       return "var(--land)";
@@ -560,9 +578,41 @@ function renderAll() {
       box.style.display = "block";
     });
 
-  // 방문 도시 핀 표시 (방문 필터 또는 전체 필터일 때 표시)
+  // 확대할 때만 모든 국가명(영문)을 지도에 비례 축소 표시
+  const zoomRatio = viewMode === "2d" ? scaleFactor : 1;
+  const showCountryNames = zoomRatio >= 1.8;
+  const namedFeatures = showCountryNames
+    ? worldFeatures.filter(f => f.properties && f.properties.name)
+    : [];
+
+  const cLblSel = gCountryLabels.selectAll("text.country-label").data(namedFeatures, d => d.id);
+  cLblSel.exit().remove();
+  const cLblMerged = cLblSel.enter().append("text").attr("class", "country-label").merge(cLblSel);
+
+  cLblMerged.each(function(d) {
+    const centroid = d3.geoCentroid(d);
+    const pt = projection(centroid);
+    let visible = !!pt;
+    if (viewMode === "3d") {
+      visible = d3.geoDistance(centroid, [-globeRotate[0], -globeRotate[1]]) < Math.PI / 2;
+    }
+    const el = d3.select(this);
+    if (!visible) {
+      el.style("display", "none");
+      return;
+    }
+    // 확대될수록 글자가 작아지도록 비율 조정
+    const cFontSize = Math.max(2.2, 8.5 / Math.pow(zoomRatio, 0.72));
+    el.style("display", "block")
+      .attr("x", pt[0])
+      .attr("y", pt[1])
+      .style("font-size", `${cFontSize}px`)
+      .text(d.properties.name);
+  });
+
+  // 도시 마커 렌더링 (중복 없이 갱신)
   const activeCities = filterMode === "planned" ? [] : cityMarkers;
-  const citySel = gCities.selectAll("g.city-marker").data(activeCities, d => `${d.iso}__${d.city}`);
+  const citySel = gCities.selectAll("g.city-marker").data(activeCities, d => `${d.iso}__${d.city.toLowerCase()}`);
   citySel.exit().remove();
 
   const cityEnter = citySel.enter().append("g").attr("class", "city-marker");
@@ -585,28 +635,35 @@ function renderAll() {
     g.style("display", "block").attr("transform", `translate(${pt[0]}, ${pt[1]})`);
 
     const isMulti = d.count >= 2;
-    const baseR = viewMode === "2d" ? Math.max(2.6, (isMulti ? 6.5 : 3.8) / Math.sqrt(scaleFactor)) : (isMulti ? 7.5 : 4.2);
-    const badgeFont = viewMode === "2d" ? Math.max(6, 9.5 / Math.sqrt(scaleFactor)) : 10;
-    const lblFont = viewMode === "2d" ? Math.max(5.5, 9 / Math.sqrt(scaleFactor)) : 9.5;
+    // 확대할수록 점·배지·도시명이 작아져 좁은 영토를 덮지 않도록 비율 축소
+    const r = viewMode === "2d"
+      ? Math.max(1.1, (isMulti ? 5.2 : 3.0) / Math.pow(scaleFactor, 0.68))
+      : (isMulti ? 6.5 : 3.8);
+    const strokeW = viewMode === "2d" ? Math.max(0.35, 1.1 / Math.pow(scaleFactor, 0.6)) : 1.1;
+    const badgeFont = viewMode === "2d" ? Math.max(1.6, 7.5 / Math.pow(scaleFactor, 0.72)) : 9;
+    // 기본 상태(scaleFactor < 1.5)에서는 도시명 숨김, 확대 시 비율에 맞춰 작게 표시
+    const canShowCityLabel = showLabels && (viewMode === "3d" || scaleFactor >= 1.5);
+    const lblFont = viewMode === "2d" ? Math.max(1.8, 7.2 / Math.pow(scaleFactor, 0.72)) : 9;
 
     g.select("circle")
       .attr("class", isMulti ? "city-badge" : "city-dot")
-      .attr("r", baseR);
+      .attr("r", r)
+      .style("stroke-width", `${strokeW}px`);
 
     g.select("text.city-count")
       .text(isMulti ? String(d.count) : "")
-      .style("font-size", badgeFont + "px");
+      .style("font-size", `${badgeFont}px`);
 
     g.select("text.city-label")
-      .text(showLabels ? d.city : "")
-      .attr("x", baseR + 3)
-      .attr("y", 2)
-      .style("font-size", lblFont + "px");
+      .text(canShowCityLabel ? d.city : "")
+      .attr("x", r + Math.max(1.2, 2.8 / Math.pow(scaleFactor, 0.65)))
+      .attr("y", 1.5)
+      .style("font-size", `${lblFont}px`);
   });
 }
 
 function bindGestures() {
-  const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", (ev) => {
+  const zoom = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
     if (viewMode === "2d") {
       scaleFactor = ev.transform.k;
       gRoot.attr("transform", ev.transform);
@@ -643,7 +700,7 @@ function setMode(m) {
 
 function resetCamera() {
   scaleFactor = 1;
-  globeRotate = [0, -20];
+  globeRotate = [0, -15];
   gRoot.attr("transform", null);
   svg.call(d3.zoom().transform, d3.zoomIdentity);
   renderAll();
@@ -674,8 +731,11 @@ function addRecord() {
   const cities = document.getElementById("in-cities").value.split(",").map(s => s.trim()).filter(Boolean);
   const status = normalizeStatus(document.getElementById("in-status").value);
   const note = document.getElementById("in-note").value.trim();
+  const item = { country, iso, cities, status, note };
 
-  records.push({ country, iso, cities, status, note });
+  if (!records.some(r => recordSignature(r) === recordSignature(item))) {
+    records.push(item);
+  }
   document.getElementById("in-country").value = "";
   document.getElementById("in-cities").value = "";
   document.getElementById("in-note").value = "";
@@ -701,10 +761,28 @@ function importNumbers(overwrite) {
     nextList.push({ country, iso, cities, status, note });
   });
 
-  records = overwrite ? nextList : records.concat(nextList);
+  if (overwrite) {
+    const seen = new Set();
+    records = nextList.filter(item => {
+      const sig = recordSignature(item);
+      if (seen.has(sig)) return false;
+      seen.add(sig);
+      return true;
+    });
+  } else {
+    const existingSigs = new Set(records.map(recordSignature));
+    nextList.forEach(item => {
+      const sig = recordSignature(item);
+      if (!existingSigs.has(sig)) {
+        existingSigs.add(sig);
+        records.push(item);
+      }
+    });
+  }
+
   saveAndRender();
   closeModal("numbers-modal");
-  alert(`${nextList.length}건이 반영되었습니다.`);
+  alert("반영이 완료되었습니다. (중복 행은 자동 제외)");
 }
 
 function exportNumbersToBox() {
