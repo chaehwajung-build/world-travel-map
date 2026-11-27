@@ -83,8 +83,8 @@
     .dot-sample { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
 
     #map-wrap { flex: 1; position: relative; background: var(--ocean); overflow: hidden; touch-action: none; }
-    svg { width: 100%; height: 100%; display: block; }
-    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; }
+    svg { width: 100%; height: 100%; display: block; background: var(--ocean); }
+    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; transition: none; }
     .country-label {
       fill: #f8fafc;
       stroke: #070d19;
@@ -403,12 +403,21 @@ let viewMode = "2d";
 let showLabels = true;
 let currentTransform = d3.zoomIdentity;
 let globeRotate = [0, -15];
+let rafId = null;
 
 const svg = d3.select("#svg-map");
 const gLand = svg.append("g");
 const gCountryLabels = svg.append("g");
 const gCities = svg.append("g");
 let projection, geoPath, zoomBehavior;
+
+function scheduleRender() {
+  if (rafId !== null) return;
+  rafId = requestAnimationFrame(() => {
+    rafId = null;
+    renderAll();
+  });
+}
 
 function resolveIso(name) {
   if (!name) return null;
@@ -485,7 +494,7 @@ function getVisitedColor(count) {
 
 function saveAndRender() {
   localStorage.setItem(DATA_KEY, JSON.stringify(records));
-  renderAll();
+  scheduleRender();
 }
 
 async function init() {
@@ -546,35 +555,35 @@ function renderAll() {
     `방문 ${visitCountByIso.size}개국 · 예정 ${plannedIsos.size}개국 · 도시 ${cityMarkers.length}곳`;
 
   const landSel = gLand.selectAll("path.country").data(worldFeatures, d => d.id);
-  const landMerged = landSel.enter()
+  landSel.enter()
     .append("path")
     .attr("class", "country")
     .merge(landSel)
     .attr("d", geoPath)
-    .attr("transform", viewMode === "2d" ? currentTransform.toString() : null)
-    .style("stroke-width", `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor))}px`)
-    .style("fill", d => {
+    .attr("transform", viewMode === "2d" ? `translate(${currentTransform.x.toFixed(2)},${currentTransform.y.toFixed(2)}) scale(${currentTransform.k.toFixed(4)})` : null)
+    .attr("stroke-width", `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor)).toFixed(2)}`)
+    .attr("fill", d => {
       const iso = String(d.id).padStart(3, "0");
       const vCount = visitCountByIso.get(iso) || 0;
       const isPlanned = plannedIsos.has(iso);
 
-      if (filterMode === "visited") return vCount > 0 ? getVisitedColor(vCount) : "var(--land)";
-      if (filterMode === "planned") return isPlanned ? "var(--planned)" : "var(--land)";
+      if (filterMode === "visited") return vCount > 0 ? getVisitedColor(vCount) : "#1e293b";
+      if (filterMode === "planned") return isPlanned ? "#3b82f6" : "#1e293b";
       if (vCount > 0) return getVisitedColor(vCount);
-      if (isPlanned) return "var(--planned)";
-      return "var(--land)";
+      if (isPlanned) return "#3b82f6";
+      return "#1e293b";
     })
-    .style("stroke", d => {
+    .attr("stroke", d => {
       const iso = String(d.id).padStart(3, "0");
       const vCount = visitCountByIso.get(iso) || 0;
       const isPlanned = plannedIsos.has(iso);
       if (filterMode === "visited" && vCount > 0) return "#a7f3d0";
-      if (filterMode === "planned" && isPlanned) return "var(--planned-stroke)";
+      if (filterMode === "planned" && isPlanned) return "#93c5fd";
       if (filterMode === "all") {
         if (vCount > 0) return "#a7f3d0";
-        if (isPlanned) return "var(--planned-stroke)";
+        if (isPlanned) return "#93c5fd";
       }
-      return "var(--land-stroke)";
+      return "#334155";
     })
     .on("click", (_, d) => {
       const iso = String(d.id).padStart(3, "0");
@@ -609,9 +618,9 @@ function renderAll() {
 
       gCountryLabels.append("text")
         .attr("class", "country-label")
-        .attr("x", pt[0])
-        .attr("y", pt[1])
-        .style("font-size", `${cFontSize}px`)
+        .attr("x", pt[0].toFixed(1))
+        .attr("y", pt[1].toFixed(1))
+        .attr("font-size", `${cFontSize.toFixed(1)}px`)
         .text(f.properties.name);
     });
   }
@@ -635,26 +644,26 @@ function renderAll() {
 
       const grp = gCities.append("g")
         .attr("class", "city-marker")
-        .attr("transform", `translate(${pt[0]}, ${pt[1]})`);
+        .attr("transform", `translate(${pt[0].toFixed(1)}, ${pt[1].toFixed(1)})`);
 
       grp.append("circle")
         .attr("class", isMulti ? "city-badge" : "city-dot")
-        .attr("r", r)
-        .style("stroke-width", `${strokeW}px`);
+        .attr("r", r.toFixed(2))
+        .attr("stroke-width", `${strokeW.toFixed(2)}`);
 
       if (isMulti) {
         grp.append("text")
           .attr("class", "city-count")
-          .style("font-size", `${badgeFont}px`)
+          .attr("font-size", `${badgeFont.toFixed(1)}px`)
           .text(String(d.count));
       }
 
       if (canShowCityLabel) {
         grp.append("text")
           .attr("class", "city-label")
-          .attr("x", r + 4)
-          .attr("y", 2)
-          .style("font-size", `${lblFont}px`)
+          .attr("x", (r + 4).toFixed(1))
+          .attr("y", "2")
+          .attr("font-size", `${lblFont.toFixed(1)}px`)
           .text(d.city);
       }
     });
@@ -664,7 +673,7 @@ function renderAll() {
 function bindGestures() {
   zoomBehavior = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
     currentTransform = ev.transform;
-    renderAll();
+    scheduleRender();
   });
   const drag = d3.drag().on("drag", (ev) => {
     if (viewMode === "3d") {
@@ -672,7 +681,7 @@ function bindGestures() {
         globeRotate[0] + ev.dx * 0.35,
         Math.max(-85, Math.min(85, globeRotate[1] - ev.dy * 0.35))
       ];
-      renderAll();
+      scheduleRender();
     }
   });
   svg.call(zoomBehavior).call(drag);
@@ -684,7 +693,7 @@ function setFilter(mode) {
   document.getElementById("f-visited").className = mode === "visited" ? "active-visited" : "";
   document.getElementById("f-planned").className = mode === "planned" ? "active-planned" : "";
   document.getElementById("info-box").style.display = "none";
-  renderAll();
+  scheduleRender();
 }
 
 function setMode(m) {
@@ -698,13 +707,13 @@ function resetCamera() {
   currentTransform = d3.zoomIdentity;
   globeRotate = [0, -15];
   if (zoomBehavior) svg.call(zoomBehavior.transform, d3.zoomIdentity);
-  renderAll();
+  scheduleRender();
 }
 
 function toggleLabels() {
   showLabels = !showLabels;
   document.getElementById("btn-lbl").textContent = showLabels ? "도시명 ON" : "도시명 OFF";
-  renderAll();
+  scheduleRender();
 }
 
 function openModal(id) {
@@ -857,7 +866,7 @@ function importJsonFile(ev) {
   ev.target.value = "";
 }
 
-window.addEventListener("resize", renderAll);
+window.addEventListener("resize", scheduleRender);
 init();
 </script>
 </body>
