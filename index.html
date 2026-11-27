@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="세계여행 지도" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net;" />
+  <title>세계여행 지도</title>
+  <script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --panel: #162033;
+      --border: #2b3b57;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --planned: #3b82f6;
+      --planned-stroke: #93c5fd;
+      --city-red: #ef4444;
+      --land: #1e293b;
+      --land-stroke: #334155;
+      --ocean: #070d19;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100dvh;
+    }
+    header {
+      background: rgba(22, 32, 51, 0.96);
+      border-bottom: 1px solid var(--border);
+      padding: calc(env(safe-area-inset-top) + 8px) 12px 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      z-index: 20;
+    }
+    .brand h1 { margin: 0; font-size: 15px; font-weight: 700; }
+    .stats { font-size: 11.5px; color: #6ee7b7; margin-top: 2px; font-weight: 600; }
+    .btn-row { display: flex; gap: 5px; flex-wrap: wrap; justify-content: flex-end; }
+    button {
+      background: #24334d;
+      color: var(--text);
+      border: 1px solid #3b5075;
+      border-radius: 7px;
+      padding: 6px 9px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button.primary { background: #10b981; color: #052e16; border-color: #10b981; }
+    button.blue-btn { background: #2563eb; color: #eff6ff; border-color: #3b82f6; }
+    button:active { opacity: 0.8; }
+
+    .filter-strip {
+      background: #111929;
+      border-bottom: 1px solid var(--border);
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11.5px;
+      z-index: 19;
+    }
+    .seg-group { display: flex; gap: 4px; }
+    .seg-group button { padding: 4px 9px; font-size: 11px; }
+    .seg-group button.active-all { background: #334155; border-color: #94a3b8; color: #fff; }
+    .seg-group button.active-visited { background: #059669; border-color: #34d399; color: #ecfdf5; }
+    .seg-group button.active-planned { background: #2563eb; border-color: #60a5fa; color: #eff6ff; }
+    .legend { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+    .dot-sample { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 3px; vertical-align: middle; }
+
+    #map-wrap { flex: 1; position: relative; background: var(--ocean); overflow: hidden; touch-action: none; }
+    svg { width: 100%; height: 100%; display: block; }
+    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; transition: fill 0.15s; }
+    .city-marker { cursor: pointer; }
+    .city-dot { fill: var(--city-red); stroke: #fff; stroke-width: 1.2px; }
+    .city-badge { fill: var(--city-red); stroke: #fff; stroke-width: 1.2px; }
+    .city-count {
+      fill: #fff;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: central;
+      pointer-events: none;
+    }
+    .city-label {
+      fill: #f1f5f9;
+      font-weight: 600;
+      text-shadow: 0 1px 3px #000, 0 0 2px #000;
+      pointer-events: none;
+    }
+
+    .bottom-bar {
+      position: absolute;
+      bottom: calc(env(safe-area-inset-bottom) + 12px);
+      left: 12px;
+      right: 12px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      z-index: 15;
+    }
+    .bottom-bar > * { pointer-events: auto; }
+    .pill {
+      display: flex;
+      background: rgba(22, 32, 51, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 3px;
+      gap: 3px;
+    }
+    .pill button { border: none; background: transparent; padding: 5px 9px; border-radius: 6px; }
+    .pill button.active { background: #10b981; color: #052e16; }
+
+    #info-box {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      background: rgba(11, 17, 32, 0.94);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 8px 11px;
+      font-size: 12px;
+      max-width: 270px;
+      display: none;
+      z-index: 18;
+    }
+    #status-msg {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      z-index: 50;
+    }
+    .modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 86dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .modal-body { padding: 12px 14px; overflow-y: auto; font-size: 12.5px; line-height: 1.5; }
+    label { display: block; margin-top: 8px; color: #cbd5e1; font-weight: 600; }
+    input, select, textarea {
+      width: 100%;
+      background: #0b1120;
+      color: var(--text);
+      border: 1px solid #3b5075;
+      border-radius: 7px;
+      padding: 8px 10px;
+      font-size: 12.5px;
+      font-family: inherit;
+      margin-top: 4px;
+    }
+    textarea { height: 150px; resize: vertical; }
+    .row { display: flex; gap: 6px; margin-top: 10px; }
+    .row > button { flex: 1; padding: 9px; }
+    .item-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #26354f;
+      gap: 8px;
+    }
+    .tag-v { background: rgba(16, 185, 129, 0.2); color: #6ee7b7; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+    .tag-p { background: rgba(59, 130, 246, 0.22); color: #93c5fd; padding: 1px 6px; border-radius: 4px; font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <h1>세계여행 지도</h1>
+    <div class="stats" id="stats">방문 0개국 · 예정 0개국 · 도시 0곳</div>
+  </div>
+  <div class="btn-row">
+    <button class="primary" onclick="openModal('add-modal')">+ 기록</button>
+    <button onclick="openModal('numbers-modal')">Numbers</button>
+    <button onclick="openModal('backup-modal')">백업/목록</button>
+  </div>
+</header>
+
+<div class="filter-strip">
+  <div class="seg-group">
+    <button id="f-all" class="active-all" onclick="setFilter('all')">전체</button>
+    <button id="f-visited" onclick="setFilter('visited')">방문한 나라</button>
+    <button id="f-planned" onclick="setFilter('planned')">가려고 하는 나라</button>
+  </div>
+  <div class="legend">
+    <span><i class="dot-sample" style="background:#10b981;"></i>방문(횟수↑ 진함)</span>
+    <span><i class="dot-sample" style="background:#3b82f6;"></i>예정</span>
+    <span><i class="dot-sample" style="background:#ef4444;"></i>도시 1회 / 숫자 2회+</span>
+  </div>
+</div>
+
+<div id="map-wrap">
+  <div id="status-msg">세계지도 경계 데이터를 불러오는 중입니다...<br>(최초 1회 로드 후 브라우저에 캐시됩니다)</div>
+  <div id="info-box"></div>
+  <svg id="svg-map"></svg>
+
+  <div class="bottom-bar">
+    <div class="pill">
+      <button id="m-2d" class="active" onclick="setMode('2d')">세계지도</button>
+      <button id="m-3d" onclick="setMode('3d')">지구본</button>
+    </div>
+    <div class="pill">
+      <button id="btn-lbl" onclick="toggleLabels()">도시명 ON</button>
+      <button onclick="resetCamera()">초기화</button>
+    </div>
+  </div>
+</div>
+
+<!-- 기록 추가 모달 -->
+<div class="backdrop" id="add-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>여행 기록 추가</span>
+      <button onclick="closeModal('add-modal')">닫기</button>
+    </div>
+    <div class="modal-body">
+      <label>국가명 (한글 또는 영문)</label>
+      <input type="text" id="in-country" />
+      <label>도시 (쉼표로 구분 · 한 여행 여러 도시는 국가 1회로 집계 · 예정국은 선택)</label>
+      <input type="text" id="in-cities" />
+      <label>구분</label>
+      <select id="in-status">
+        <option value="방문">방문</option>
+        <option value="예정">예정</option>
+      </select>
+      <label>메모 (선택 · 예: 2026 가을)</label>
+      <input type="text" id="in-note" />
+      <div class="row">
+        <button class="primary" onclick="addRecord()">저장</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Numbers 연동 모달 -->
+<div class="backdrop" id="numbers-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>Apple Numbers 가져오기 · 내려받기</span>
+      <button onclick="closeModal('numbers-modal')">닫기</button>
+    </div>
+    <div class="modal-body">
+      <div>형식: <b>국가 | 도시(쉼표 구분) | 구분(방문/예정) | 메모</b></div>
+      <textarea id="numbers-io">국가	도시	구분	메모</textarea>
+      <div class="row">
+        <button class="primary" onclick="importNumbers(false)">기존에 추가</button>
+        <button onclick="importNumbers(true)">전체 덮어쓰기</button>
+      </div>
+      <div class="row">
+        <button onclick="exportNumbersToBox()">현재 기록을 Numbers 포맷으로 불러오기</button>
+        <button onclick="copyNumbersBox()">복사</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- iCloud JSON 백업 및 목록 모달 -->
+<div class="backdrop" id="backup-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <span>iCloud JSON 백업 · 기록 목록</span>
+      <button onclick="closeModal('backup-modal')">닫기</button>
+    </div>
+    <div class="modal-body">
+      <div class="row">
+        <button class="blue-btn" onclick="exportJsonFile()">JSON 백업 저장</button>
+        <button onclick="document.getElementById('json-input').click()">JSON 복원</button>
+        <input type="file" id="json-input" accept=".json,application/json" style="display:none" onchange="importJsonFile(event)" />
+      </div>
+      <div id="records-list" style="margin-top:10px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const COUNTRY_ISO = {
+  "대한민국":"410","한국":"410","south korea":"410","korea":"410",
+  "일본":"392","japan":"392","중국":"156","china":"156","대만":"158","taiwan":"158",
+  "홍콩":"344","hong kong":"344","마카오":"446","macau":"446","싱가포르":"702","singapore":"702",
+  "태국":"764","thailand":"764","베트남":"704","vietnam":"704","말레이시아":"458","malaysia":"458",
+  "인도네시아":"360","indonesia":"360","필리핀":"608","philippines":"608","캄보디아":"116","cambodia":"116",
+  "라오스":"418","laos":"418","인도":"356","india":"356","네팔":"524","nepal":"524",
+  "몽골":"496","mongolia":"496","우즈베키스탄":"860","uzbekistan":"860","카자흐스탄":"398","kazakhstan":"398",
+  "아랍에미리트":"784","uae":"784","튀르키예":"792","터키":"792","turkey":"792","turkiye":"792",
+  "이스라엘":"376","israel":"376","요르단":"400","jordan":"400","카타르":"634","qatar":"634",
+  "미국":"840","usa":"840","united states":"840","캐나다":"124","canada":"124",
+  "멕시코":"484","mexico":"484","브라질":"076","brazil":"076","아르헨티나":"032","argentina":"032",
+  "페루":"604","peru":"604","칠레":"152","chile":"152","콜롬비아":"170","colombia":"170",
+  "영국":"826","uk":"826","united kingdom":"826","프랑스":"250","france":"250",
+  "독일":"276","germany":"276","이탈리아":"380","italy":"380","스페인":"724","spain":"724",
+  "포르투갈":"620","portugal":"620","스위스":"756","switzerland":"756","오스트리아":"040","austria":"040",
+  "네덜란드":"528","netherlands":"528","벨기에":"056","belgium":"056","체코":"203","czechia":"203",
+  "헝가리":"348","hungary":"348","폴란드":"616","poland":"616","그리스":"300","greece":"300",
+  "크로아티아":"191","croatia":"191","슬로베니아":"705","slovenia":"705","아이슬란드":"352","iceland":"352",
+  "노르웨이":"578","norway":"578","스웨덴":"752","sweden":"752","핀란드":"246","finland":"246",
+  "덴마크":"208","denmark":"208","아일랜드":"372","ireland":"372","러시아":"643","russia":"643",
+  "호주":"036","australia":"036","뉴질랜드":"554","new zealand":"554",
+  "이집트":"818","egypt":"818","모로코":"504","morocco":"504","남아프리카공화국":"710","south africa":"710",
+  "케냐":"404","kenya":"404","탄자니아":"834","tanzania":"834"
+};
+
+const CITY_LONLAT = {
+  "서울":[126.978,37.566],"seoul":[126.978,37.566],"부산":[129.075,35.179],"busan":[129.075,35.179],
+  "제주":[126.531,33.499],"jeju":[126.531,33.499],"도쿄":[139.691,35.689],"tokyo":[139.691,35.689],
+  "오사카":[135.502,34.693],"osaka":[135.502,34.693],"교토":[135.768,35.011],"후쿠오카":[130.401,33.590],
+  "삿포로":[141.354,43.061],"베이징":[116.407,39.904],"상하이":[121.473,31.230],"shanghai":[121.473,31.230],
+  "타이베이":[121.565,25.033],"taipei":[121.565,25.033],"홍콩":[114.169,22.319],"hong kong":[114.169,22.319],
+  "마카오":[113.543,22.198],"싱가포르":[103.819,1.352],"singapore":[103.819,1.352],
+  "방콕":[100.501,13.756],"bangkok":[100.501,13.756],"치앙마이":[98.985,18.788],"chiang mai":[98.985,18.788],
+  "푸켓":[98.392,7.880],"하노이":[105.834,21.027],"호치민":[106.629,10.823],"다낭":[108.202,16.054],
+  "쿠알라룸푸르":[101.686,3.139],"발리":[115.188,-8.409],"자카르타":[106.845,-6.208],"마닐라":[120.984,14.599],
+  "세부":[123.885,10.315],"씨엠립":[103.856,13.363],"델리":[77.209,28.613],"뭄바이":[72.877,19.076],
+  "두바이":[55.270,25.204],"dubai":[55.270,25.204],"이스탄불":[28.978,41.008],"istanbul":[28.978,41.008],
+  "샌프란시스코":[-122.419,37.774],"san francisco":[-122.419,37.774],"로스앤젤레스":[-118.243,34.052],"la":[-118.243,34.052],
+  "라스베이거스":[-115.139,36.169],"las vegas":[-115.139,36.169],"뉴욕":[-74.006,40.712],"new york":[-74.006,40.712],
+  "시애틀":[-122.332,47.606],"seattle":[-122.332,47.606],"포틀랜드":[-122.678,45.515],"시카고":[-87.629,41.878],
+  "워싱턴":[-77.036,38.907],"보스턴":[-71.058,42.360],"호놀룰루":[-157.858,21.306],
+  "밴쿠버":[-123.120,49.282],"vancouver":[-123.120,49.282],"토론토":[-79.383,43.653],"몬트리올":[-73.567,45.501],
+  "런던":[-0.127,51.507],"london":[-0.127,51.507],"에든버러":[-3.188,55.953],"파리":[2.352,48.856],"paris":[2.352,48.856],
+  "니스":[7.261,43.710],"리옹":[4.835,45.764],"프랑크푸르트":[8.682,50.110],"뮌헨":[11.582,48.135],"베를린":[13.405,52.520],
+  "로마":[12.496,41.902],"rome":[12.496,41.902],"밀라노":[9.190,45.464],"베네치아":[12.315,45.440],"피렌체":[11.255,43.769],
+  "마드리드":[-3.703,40.416],"바르셀로나":[2.173,41.385],"barcelona":[2.173,41.385],"세비야":[-5.984,37.389],
+  "리스본":[-9.139,38.722],"lisbon":[-9.139,38.722],"포르투":[-8.629,41.157],"porto":[-8.629,41.157],
+  "빌라노바드가이아":[-8.616,41.123],"취리히":[8.541,47.376],"제네바":[6.143,46.204],"인터라켄":[7.863,46.686],
+  "빈":[16.373,48.208],"비엔나":[16.373,48.208],"잘츠부르크":[13.055,47.809],"암스테르담":[4.904,52.367],
+  "브뤼셀":[4.351,50.850],"프라하":[14.437,50.075],"prague":[14.437,50.075],"부다페스트":[19.040,47.497],
+  "바르샤바":[21.012,52.229],"크라쿠프":[19.944,50.064],"아테네":[23.727,37.983],"산토리니":[25.461,36.393],
+  "두브로브니크":[18.094,42.650],"자그레브":[15.981,45.815],"레이캬비크":[-21.942,64.146],"reykjavik":[-21.942,64.146],
+  "오슬로":[10.752,59.913],"스톡홀름":[18.068,59.329],"헬싱키":[24.938,60.169],"코펜하겐":[12.568,55.676],
+  "더블린":[-6.260,53.349],"모스크바":[37.617,55.755],"상트페테르부르크":[30.335,59.934],
+  "시드니":[151.209,-33.868],"sydney":[151.209,-33.868],"멜버른":[144.963,-37.813],"오클랜드":[174.763,-36.848],
+  "퀸스타운":[168.662,-45.031],"카이로":[31.235,30.044],"카사블랑카":[-7.589,33.573],"케이프타운":[18.424,-33.924],
+  "리우데자네이루":[-43.172,-22.906],"상파울루":[-46.633,-23.550],"부에노스아이레스":[-58.381,-34.603],"리마":[-77.042,-12.046],
+  "쿠스코":[-71.967,-13.531],"산티아고":[-70.669,-33.448],"칸쿤":[-86.851,21.161]
+};
+
+const DATA_KEY = "wtm_records_v2";
+const ATLAS_KEY = "wtm_atlas_110m_v1";
+
+// 각 항목: { country, iso, cities: [], status: "방문" | "예정", note: "" }
+let records = JSON.parse(localStorage.getItem(DATA_KEY)) || [];
+let worldFeatures = null;
+let filterMode = "all"; // 'all' | 'visited' | 'planned'
+let viewMode = "2d";    // '2d' | '3d'
+let showLabels = true;
+let scaleFactor = 1;
+let globeRotate = [0, -20];
+
+const svg = d3.select("#svg-map");
+const gRoot = svg.append("g");
+const gLand = gRoot.append("g");
+const gCities = gRoot.append("g");
+let projection, geoPath;
+
+function resolveIso(name) {
+  if (!name) return null;
+  const k = name.trim().toLowerCase();
+  if (COUNTRY_ISO[k]) return COUNTRY_ISO[k];
+  if (worldFeatures) {
+    const f = worldFeatures.find(x => x.properties && x.properties.name && x.properties.name.toLowerCase() === k);
+    if (f) return String(f.id).padStart(3, "0");
+  }
+  return null;
+}
+
+function resolveCoords(city, iso) {
+  const k = city.trim().toLowerCase();
+  if (CITY_LONLAT[k]) return CITY_LONLAT[k];
+  if (worldFeatures && iso) {
+    const f = worldFeatures.find(x => String(x.id).padStart(3, "0") === iso);
+    if (f) return d3.geoCentroid(f);
+  }
+  return null;
+}
+
+function normalizeStatus(raw) {
+  const s = (raw || "").trim().toLowerCase();
+  if (s === "예정" || s === "planned" || s === "future" || s === "방문예정") return "예정";
+  return "방문";
+}
+
+function computeAggregations() {
+  const visitCountByIso = new Map();
+  const plannedIsos = new Set();
+  const cityCountMap = new Map(); // key: iso + "_" + cityLower -> { city, iso, count, coords }
+
+  records.forEach(r => {
+    const iso = r.iso || resolveIso(r.country);
+    const st = normalizeStatus(r.status);
+    if (!iso) return;
+
+    if (st === "방문") {
+      visitCountByIso.set(iso, (visitCountByIso.get(iso) || 0) + 1);
+      // 한 번의 방문 기록 내 중복 도시명은 1회로 처리
+      const uniqueCitiesInTrip = Array.from(new Set((r.cities || []).map(c => c.trim()).filter(Boolean)));
+      uniqueCitiesInTrip.forEach(city => {
+        const coords = resolveCoords(city, iso);
+        if (!coords) return;
+        const ck = `${iso}__${city.toLowerCase()}`;
+        const prev = cityCountMap.get(ck);
+        if (prev) {
+          prev.count += 1;
+        } else {
+          cityCountMap.set(ck, { city, iso, count: 1, coords });
+        }
+      });
+    } else {
+      plannedIsos.add(iso);
+    }
+  });
+
+  return { visitCountByIso, plannedIsos, cityMarkers: Array.from(cityCountMap.values()) };
+}
+
+function getVisitedColor(count) {
+  // 방문 횟수가 늘수록 연한 에메랄드에서 짙은 녹색으로 농도 증가
+  const clamped = Math.min(Math.max(count, 1), 6);
+  const t = (clamped - 1) / 5; // 0 ~ 1
+  return d3.interpolateRgb("#6ee7b7", "#047857")(t);
+}
+
+function saveAndRender() {
+  localStorage.setItem(DATA_KEY, JSON.stringify(records));
+  renderAll();
+}
+
+async function init() {
+  try {
+    let topo = JSON.parse(localStorage.getItem(ATLAS_KEY));
+    if (!topo) {
+      const resp = await fetch("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+      topo = await resp.json();
+      try { localStorage.setItem(ATLAS_KEY, JSON.stringify(topo)); } catch (_) {}
+    }
+    worldFeatures = topojson.feature(topo, topo.objects.countries).features;
+    document.getElementById("status-msg").style.display = "none";
+    bindGestures();
+    renderAll();
+  } catch (e) {
+    document.getElementById("status-msg").innerHTML =
+      "최초 실행 시 지도 경계 데이터를 불러오기 위해 인터넷 연결이 필요합니다.<br>연결 후 새로고침하시면 이후 브라우저에 캐시됩니다.";
+  }
+}
+
+function updateProjection() {
+  const w = document.getElementById("map-wrap").clientWidth;
+  const h = document.getElementById("map-wrap").clientHeight;
+  if (viewMode === "2d") {
+    projection = d3.geoNaturalEarth1().scale(w / 5.4).translate([w / 2, h / 2]);
+  } else {
+    projection = d3.geoOrthographic()
+      .scale(Math.min(w, h) * 0.43 * scaleFactor)
+      .translate([w / 2, h / 2])
+      .rotate(globeRotate)
+      .clipAngle(90);
+  }
+  geoPath = d3.geoPath().projection(projection);
+}
+
+function renderAll() {
+  if (!worldFeatures) return;
+  updateProjection();
+
+  const { visitCountByIso, plannedIsos, cityMarkers } = computeAggregations();
+
+  document.getElementById("stats").textContent =
+    `방문 ${visitCountByIso.size}개국 · 예정 ${plannedIsos.size}개국 · 도시 ${cityMarkers.length}곳`;
+
+  const landSel = gLand.selectAll("path.country").data(worldFeatures, d => d.id);
+  landSel.enter()
+    .append("path")
+    .attr("class", "country")
+    .merge(landSel)
+    .attr("d", geoPath)
+    .style("fill", d => {
+      const iso = String(d.id).padStart(3, "0");
+      const vCount = visitCountByIso.get(iso) || 0;
+      const isPlanned = plannedIsos.has(iso);
+
+      if (filterMode === "visited") {
+        return vCount > 0 ? getVisitedColor(vCount) : "var(--land)";
+      }
+      if (filterMode === "planned") {
+        return isPlanned ? "var(--planned)" : "var(--land)";
+      }
+      // 전체 보기: 방문국 초록 우선, 방문 없는 예정국 파란색
+      if (vCount > 0) return getVisitedColor(vCount);
+      if (isPlanned) return "var(--planned)";
+      return "var(--land)";
+    })
+    .style("stroke", d => {
+      const iso = String(d.id).padStart(3, "0");
+      const vCount = visitCountByIso.get(iso) || 0;
+      const isPlanned = plannedIsos.has(iso);
+      if (filterMode === "visited" && vCount > 0) return "#a7f3d0";
+      if (filterMode === "planned" && isPlanned) return "var(--planned-stroke)";
+      if (filterMode === "all") {
+        if (vCount > 0) return "#a7f3d0";
+        if (isPlanned) return "var(--planned-stroke)";
+      }
+      return "var(--land-stroke)";
+    })
+    .on("click", (_, d) => {
+      const iso = String(d.id).padStart(3, "0");
+      const matched = records.filter(r => (r.iso || resolveIso(r.country)) === iso);
+      const box = document.getElementById("info-box");
+      if (matched.length === 0) {
+        box.style.display = "none";
+        return;
+      }
+      const vCnt = visitCountByIso.get(iso) || 0;
+      const stText = vCnt > 0 ? `방문 ${vCnt}회` : "방문 예정";
+      const cities = Array.from(new Set(matched.flatMap(m => m.cities || []))).join(", ") || "-";
+      const notes = matched.map(m => m.note).filter(Boolean).join(" / ");
+      box.innerHTML = `<b>${matched[0].country}</b> · <span style="color:#6ee7b7">${stText}</span><br>도시: ${cities}${notes ? `<br><span style="color:#94a3b8">${notes}</span>` : ""}`;
+      box.style.display = "block";
+    });
+
+  // 방문 도시 핀 표시 (방문 필터 또는 전체 필터일 때 표시)
+  const activeCities = filterMode === "planned" ? [] : cityMarkers;
+  const citySel = gCities.selectAll("g.city-marker").data(activeCities, d => `${d.iso}__${d.city}`);
+  citySel.exit().remove();
+
+  const cityEnter = citySel.enter().append("g").attr("class", "city-marker");
+  cityEnter.append("circle");
+  cityEnter.append("text").attr("class", "city-count");
+  cityEnter.append("text").attr("class", "city-label");
+
+  const cityMerged = cityEnter.merge(citySel);
+  cityMerged.each(function(d) {
+    const pt = projection(d.coords);
+    let visible = !!pt;
+    if (viewMode === "3d") {
+      visible = d3.geoDistance(d.coords, [-globeRotate[0], -globeRotate[1]]) < Math.PI / 2;
+    }
+    const g = d3.select(this);
+    if (!visible) {
+      g.style("display", "none");
+      return;
+    }
+    g.style("display", "block").attr("transform", `translate(${pt[0]}, ${pt[1]})`);
+
+    const isMulti = d.count >= 2;
+    const baseR = viewMode === "2d" ? Math.max(2.6, (isMulti ? 6.5 : 3.8) / Math.sqrt(scaleFactor)) : (isMulti ? 7.5 : 4.2);
+    const badgeFont = viewMode === "2d" ? Math.max(6, 9.5 / Math.sqrt(scaleFactor)) : 10;
+    const lblFont = viewMode === "2d" ? Math.max(5.5, 9 / Math.sqrt(scaleFactor)) : 9.5;
+
+    g.select("circle")
+      .attr("class", isMulti ? "city-badge" : "city-dot")
+      .attr("r", baseR);
+
+    g.select("text.city-count")
+      .text(isMulti ? String(d.count) : "")
+      .style("font-size", badgeFont + "px");
+
+    g.select("text.city-label")
+      .text(showLabels ? d.city : "")
+      .attr("x", baseR + 3)
+      .attr("y", 2)
+      .style("font-size", lblFont + "px");
+  });
+}
+
+function bindGestures() {
+  const zoom = d3.zoom().scaleExtent([1, 14]).on("zoom", (ev) => {
+    if (viewMode === "2d") {
+      scaleFactor = ev.transform.k;
+      gRoot.attr("transform", ev.transform);
+      renderAll();
+    }
+  });
+  const drag = d3.drag().on("drag", (ev) => {
+    if (viewMode === "3d") {
+      globeRotate = [
+        globeRotate[0] + ev.dx * 0.35,
+        Math.max(-85, Math.min(85, globeRotate[1] - ev.dy * 0.35))
+      ];
+      renderAll();
+    }
+  });
+  svg.call(zoom).call(drag);
+}
+
+function setFilter(mode) {
+  filterMode = mode;
+  document.getElementById("f-all").className = mode === "all" ? "active-all" : "";
+  document.getElementById("f-visited").className = mode === "visited" ? "active-visited" : "";
+  document.getElementById("f-planned").className = mode === "planned" ? "active-planned" : "";
+  document.getElementById("info-box").style.display = "none";
+  renderAll();
+}
+
+function setMode(m) {
+  viewMode = m;
+  document.getElementById("m-2d").classList.toggle("active", m === "2d");
+  document.getElementById("m-3d").classList.toggle("active", m === "3d");
+  resetCamera();
+}
+
+function resetCamera() {
+  scaleFactor = 1;
+  globeRotate = [0, -20];
+  gRoot.attr("transform", null);
+  svg.call(d3.zoom().transform, d3.zoomIdentity);
+  renderAll();
+}
+
+function toggleLabels() {
+  showLabels = !showLabels;
+  document.getElementById("btn-lbl").textContent = showLabels ? "도시명 ON" : "도시명 OFF";
+  renderAll();
+}
+
+function openModal(id) {
+  if (id === "backup-modal") renderRecordsList();
+  document.getElementById(id).style.display = "flex";
+}
+function closeModal(id) {
+  document.getElementById(id).style.display = "none";
+}
+
+function addRecord() {
+  const country = document.getElementById("in-country").value.trim();
+  if (!country) return;
+  const iso = resolveIso(country);
+  if (!iso) {
+    alert("국가명을 인식하지 못했습니다. 한글 또는 영문 국가명을 확인해 주세요.");
+    return;
+  }
+  const cities = document.getElementById("in-cities").value.split(",").map(s => s.trim()).filter(Boolean);
+  const status = normalizeStatus(document.getElementById("in-status").value);
+  const note = document.getElementById("in-note").value.trim();
+
+  records.push({ country, iso, cities, status, note });
+  document.getElementById("in-country").value = "";
+  document.getElementById("in-cities").value = "";
+  document.getElementById("in-note").value = "";
+  saveAndRender();
+  closeModal("add-modal");
+}
+
+function importNumbers(overwrite) {
+  const raw = document.getElementById("numbers-io").value.trim();
+  if (!raw) return;
+  const lines = raw.split(/\r?\n/).filter(l => l.trim());
+  const nextList = [];
+
+  lines.forEach(line => {
+    const cols = line.includes("\t") ? line.split("\t") : line.split("|");
+    const country = (cols[0] || "").trim();
+    if (!country || country === "국가" || country === "국가명") return;
+    const iso = resolveIso(country);
+    if (!iso) return;
+    const cities = (cols[1] || "").split(/[,/]/).map(s => s.trim()).filter(Boolean);
+    const status = normalizeStatus(cols[2]);
+    const note = (cols[3] || "").trim();
+    nextList.push({ country, iso, cities, status, note });
+  });
+
+  records = overwrite ? nextList : records.concat(nextList);
+  saveAndRender();
+  closeModal("numbers-modal");
+  alert(`${nextList.length}건이 반영되었습니다.`);
+}
+
+function exportNumbersToBox() {
+  const header = "국가\t도시\t구분\t메모";
+  const rows = records.map(r =>
+    `${r.country}\t${(r.cities || []).join(", ")}\t${normalizeStatus(r.status)}\t${r.note || ""}`
+  );
+  document.getElementById("numbers-io").value = [header, ...rows].join("\n");
+}
+
+function copyNumbersBox() {
+  const txt = document.getElementById("numbers-io").value;
+  if (!txt) return;
+  navigator.clipboard.writeText(txt).then(() => alert("복사되었습니다. Numbers 표에 붙여넣으세요."));
+}
+
+function renderRecordsList() {
+  const box = document.getElementById("records-list");
+  if (records.length === 0) {
+    box.innerHTML = "<div style='color:#94a3b8; text-align:center; padding:18px;'>저장된 여행 기록이 없습니다.</div>";
+    return;
+  }
+  box.innerHTML = records.map((r, idx) => {
+    const st = normalizeStatus(r.status);
+    const badge = st === "방문" ? `<span class="tag-v">방문</span>` : `<span class="tag-p">예정</span>`;
+    return `
+      <div class="item-row">
+        <div>
+          <div><b>${r.country}</b> ${badge} <span style="color:#94a3b8; font-size:11px;">${r.note || ""}</span></div>
+          <div style="color:#cbd5e1; font-size:11.5px; margin-top:2px;">${(r.cities || []).join(", ") || "도시 미입력"}</div>
+        </div>
+        <button style="background:#7f1d1d; border-color:#991b1b;" onclick="removeRecord(${idx})">삭제</button>
+      </div>
+    `;
+  }).join("");
+}
+
+function removeRecord(idx) {
+  records.splice(idx, 1);
+  saveAndRender();
+  renderRecordsList();
+}
+
+function exportJsonFile() {
+  const blob = new Blob([JSON.stringify(records, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `world-map-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJsonFile(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!Array.isArray(parsed)) throw new Error();
+      records = parsed.map(x => ({
+        country: String(x.country || "").trim(),
+        iso: x.iso || resolveIso(x.country),
+        cities: Array.isArray(x.cities) ? x.cities : [],
+        status: normalizeStatus(x.status),
+        note: String(x.note || "").trim()
+      })).filter(x => x.country && x.iso);
+      saveAndRender();
+      renderRecordsList();
+      alert("JSON 백업에서 복원되었습니다.");
+    } catch (_) {
+      alert("올바른 JSON 백업 파일이 아닙니다.");
+    }
+  };
+  reader.readAsText(file);
+  ev.target.value = "";
+}
+
+window.addEventListener("resize", renderAll);
+init();
+</script>
+</body>
+</html>
