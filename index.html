@@ -86,7 +86,7 @@
     svg { width: 100%; height: 100%; display: block; }
     .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; }
     .country-label {
-      fill: rgba(248, 250, 252, 0.88);
+      fill: rgba(248, 250, 252, 0.9);
       font-weight: 600;
       text-anchor: middle;
       dominant-baseline: central;
@@ -394,8 +394,8 @@ const ATLAS_KEY = "wtm_atlas_110m_v1";
 
 let records = JSON.parse(localStorage.getItem(DATA_KEY)) || [];
 let worldFeatures = null;
-let filterMode = "all"; // 'all' | 'visited' | 'planned'
-let viewMode = "2d";    // '2d' | '3d'
+let filterMode = "all";
+let viewMode = "2d";
 let showLabels = true;
 let scaleFactor = 1;
 let globeRotate = [0, -15];
@@ -494,7 +494,6 @@ async function init() {
       try { localStorage.setItem(ATLAS_KEY, JSON.stringify(topo)); } catch (_) {}
     }
     const rawFeatures = topojson.feature(topo, topo.objects.countries).features;
-    // 남극 제외하여 지도가 화면을 더 크게 채우도록 구성
     worldFeatures = rawFeatures.filter(f => String(f.id).padStart(3, "0") !== "010");
     document.getElementById("status-msg").style.display = "none";
     bindGestures();
@@ -509,7 +508,7 @@ function updateProjection() {
   const w = document.getElementById("map-wrap").clientWidth;
   const h = document.getElementById("map-wrap").clientHeight;
   if (viewMode === "2d") {
-    const baseScale = Math.max(w / 4.4, h / 2.6);
+    const baseScale = Math.max(w / 4.3, h / 2.5);
     projection = d3.geoNaturalEarth1()
       .scale(baseScale)
       .translate([w / 2, h * 0.54]);
@@ -538,7 +537,7 @@ function renderAll() {
     .attr("class", "country")
     .merge(landSel)
     .attr("d", geoPath)
-    .style("stroke-width", viewMode === "2d" ? `${Math.max(0.15, 0.55 / Math.sqrt(scaleFactor))}px` : "0.5px")
+    .style("stroke-width", viewMode === "2d" ? `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor))}px` : "0.5px")
     .style("fill", d => {
       const iso = String(d.id).padStart(3, "0");
       const vCount = visitCountByIso.get(iso) || 0;
@@ -578,88 +577,76 @@ function renderAll() {
       box.style.display = "block";
     });
 
-  // 확대할 때만 모든 국가명(영문)을 지도에 비례 축소 표시
+  // 중복 방지: 매 렌더링마다 라벨/핀 레이어를 초기화 후 새로 생성
+  gCountryLabels.selectAll("*").remove();
+  gCities.selectAll("*").remove();
+
   const zoomRatio = viewMode === "2d" ? scaleFactor : 1;
-  const showCountryNames = zoomRatio >= 1.8;
-  const namedFeatures = showCountryNames
-    ? worldFeatures.filter(f => f.properties && f.properties.name)
-    : [];
+  if (zoomRatio >= 1.8) {
+    const cFontSize = Math.max(2.0, 8.2 / Math.pow(zoomRatio, 0.72));
+    worldFeatures.forEach(f => {
+      if (!f.properties || !f.properties.name) return;
+      const centroid = d3.geoCentroid(f);
+      const pt = projection(centroid);
+      if (!pt || Number.isNaN(pt[0]) || Number.isNaN(pt[1])) return;
+      if (viewMode === "3d") {
+        const dist = d3.geoDistance(centroid, [-globeRotate[0], -globeRotate[1]]);
+        if (dist >= Math.PI / 2) return;
+      }
+      gCountryLabels.append("text")
+        .attr("class", "country-label")
+        .attr("x", pt[0])
+        .attr("y", pt[1])
+        .style("font-size", `${cFontSize}px`)
+        .text(f.properties.name);
+    });
+  }
 
-  const cLblSel = gCountryLabels.selectAll("text.country-label").data(namedFeatures, d => d.id);
-  cLblSel.exit().remove();
-  const cLblMerged = cLblSel.enter().append("text").attr("class", "country-label").merge(cLblSel);
-
-  cLblMerged.each(function(d) {
-    const centroid = d3.geoCentroid(d);
-    const pt = projection(centroid);
-    let visible = !!pt;
-    if (viewMode === "3d") {
-      visible = d3.geoDistance(centroid, [-globeRotate[0], -globeRotate[1]]) < Math.PI / 2;
-    }
-    const el = d3.select(this);
-    if (!visible) {
-      el.style("display", "none");
-      return;
-    }
-    // 확대될수록 글자가 작아지도록 비율 조정
-    const cFontSize = Math.max(2.2, 8.5 / Math.pow(zoomRatio, 0.72));
-    el.style("display", "block")
-      .attr("x", pt[0])
-      .attr("y", pt[1])
-      .style("font-size", `${cFontSize}px`)
-      .text(d.properties.name);
-  });
-
-  // 도시 마커 렌더링 (중복 없이 갱신)
-  const activeCities = filterMode === "planned" ? [] : cityMarkers;
-  const citySel = gCities.selectAll("g.city-marker").data(activeCities, d => `${d.iso}__${d.city.toLowerCase()}`);
-  citySel.exit().remove();
-
-  const cityEnter = citySel.enter().append("g").attr("class", "city-marker");
-  cityEnter.append("circle");
-  cityEnter.append("text").attr("class", "city-count");
-  cityEnter.append("text").attr("class", "city-label");
-
-  const cityMerged = cityEnter.merge(citySel);
-  cityMerged.each(function(d) {
-    const pt = projection(d.coords);
-    let visible = !!pt;
-    if (viewMode === "3d") {
-      visible = d3.geoDistance(d.coords, [-globeRotate[0], -globeRotate[1]]) < Math.PI / 2;
-    }
-    const g = d3.select(this);
-    if (!visible) {
-      g.style("display", "none");
-      return;
-    }
-    g.style("display", "block").attr("transform", `translate(${pt[0]}, ${pt[1]})`);
-
-    const isMulti = d.count >= 2;
-    // 확대할수록 점·배지·도시명이 작아져 좁은 영토를 덮지 않도록 비율 축소
-    const r = viewMode === "2d"
-      ? Math.max(1.1, (isMulti ? 5.2 : 3.0) / Math.pow(scaleFactor, 0.68))
-      : (isMulti ? 6.5 : 3.8);
-    const strokeW = viewMode === "2d" ? Math.max(0.35, 1.1 / Math.pow(scaleFactor, 0.6)) : 1.1;
-    const badgeFont = viewMode === "2d" ? Math.max(1.6, 7.5 / Math.pow(scaleFactor, 0.72)) : 9;
-    // 기본 상태(scaleFactor < 1.5)에서는 도시명 숨김, 확대 시 비율에 맞춰 작게 표시
+  if (filterMode !== "planned") {
     const canShowCityLabel = showLabels && (viewMode === "3d" || scaleFactor >= 1.5);
-    const lblFont = viewMode === "2d" ? Math.max(1.8, 7.2 / Math.pow(scaleFactor, 0.72)) : 9;
+    const lblFont = viewMode === "2d" ? Math.max(1.7, 7.0 / Math.pow(scaleFactor, 0.72)) : 9;
 
-    g.select("circle")
-      .attr("class", isMulti ? "city-badge" : "city-dot")
-      .attr("r", r)
-      .style("stroke-width", `${strokeW}px`);
+    cityMarkers.forEach(d => {
+      const pt = projection(d.coords);
+      if (!pt || Number.isNaN(pt[0]) || Number.isNaN(pt[1])) return;
+      if (viewMode === "3d") {
+        const dist = d3.geoDistance(d.coords, [-globeRotate[0], -globeRotate[1]]);
+        if (dist >= Math.PI / 2) return;
+      }
 
-    g.select("text.city-count")
-      .text(isMulti ? String(d.count) : "")
-      .style("font-size", `${badgeFont}px`);
+      const isMulti = d.count >= 2;
+      const r = viewMode === "2d"
+        ? Math.max(1.0, (isMulti ? 5.0 : 2.8) / Math.pow(scaleFactor, 0.68))
+        : (isMulti ? 6.5 : 3.8);
+      const strokeW = viewMode === "2d" ? Math.max(0.3, 1.0 / Math.pow(scaleFactor, 0.6)) : 1.1;
+      const badgeFont = viewMode === "2d" ? Math.max(1.5, 7.2 / Math.pow(scaleFactor, 0.72)) : 9;
 
-    g.select("text.city-label")
-      .text(canShowCityLabel ? d.city : "")
-      .attr("x", r + Math.max(1.2, 2.8 / Math.pow(scaleFactor, 0.65)))
-      .attr("y", 1.5)
-      .style("font-size", `${lblFont}px`);
-  });
+      const grp = gCities.append("g")
+        .attr("class", "city-marker")
+        .attr("transform", `translate(${pt[0]}, ${pt[1]})`);
+
+      grp.append("circle")
+        .attr("class", isMulti ? "city-badge" : "city-dot")
+        .attr("r", r)
+        .style("stroke-width", `${strokeW}px`);
+
+      if (isMulti) {
+        grp.append("text")
+          .attr("class", "city-count")
+          .style("font-size", `${badgeFont}px`)
+          .text(String(d.count));
+      }
+
+      if (canShowCityLabel) {
+        grp.append("text")
+          .attr("class", "city-label")
+          .attr("x", r + Math.max(1.1, 2.6 / Math.pow(scaleFactor, 0.65)))
+          .attr("y", 1.5)
+          .style("font-size", `${lblFont}px`)
+          .text(d.city);
+      }
+    });
+  }
 }
 
 function bindGestures() {
