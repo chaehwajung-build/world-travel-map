@@ -18,7 +18,6 @@
       --text: #f8fafc;
       --muted: #94a3b8;
       --planned: #3b82f6;
-      --planned-stroke: #93c5fd;
       --city-red: #ef4444;
       --land: #1e293b;
       --land-stroke: #334155;
@@ -82,36 +81,18 @@
     .legend { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 10.5px; }
     .dot-sample { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 2px; vertical-align: middle; }
 
-    #map-wrap { flex: 1; position: relative; background: var(--ocean); overflow: hidden; touch-action: none; }
-    svg { width: 100%; height: 100%; display: block; background: var(--ocean); }
-    .country { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5px; transition: none; }
-    .country-label {
-      fill: #f8fafc;
-      stroke: #070d19;
-      stroke-width: 2.2px;
-      paint-order: stroke fill;
-      font-weight: 600;
-      text-anchor: middle;
-      dominant-baseline: central;
-      pointer-events: none;
+    #map-wrap {
+      flex: 1;
+      position: relative;
+      background: var(--ocean);
+      overflow: hidden;
+      touch-action: none;
     }
-    .city-marker { cursor: pointer; }
-    .city-dot { fill: var(--city-red); stroke: #fff; }
-    .city-badge { fill: var(--city-red); stroke: #fff; }
-    .city-count {
-      fill: #fff;
-      font-weight: 700;
-      text-anchor: middle;
-      dominant-baseline: central;
-      pointer-events: none;
-    }
-    .city-label {
-      fill: #fef08a;
-      stroke: #070d19;
-      stroke-width: 2.4px;
-      paint-order: stroke fill;
-      font-weight: 600;
-      pointer-events: none;
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: var(--ocean);
     }
 
     .bottom-bar {
@@ -159,6 +140,7 @@
       padding: 20px;
       color: var(--muted);
       font-size: 13px;
+      pointer-events: none;
     }
 
     .backdrop {
@@ -249,7 +231,7 @@
 <div id="map-wrap">
   <div id="status-msg">세계지도 경계 데이터를 불러오는 중입니다...<br>(최초 1회 로드 후 브라우저에 캐시됩니다)</div>
   <div id="info-box"></div>
-  <svg id="svg-map"></svg>
+  <canvas id="map-canvas"></canvas>
 
   <div class="bottom-bar">
     <div class="pill">
@@ -404,11 +386,12 @@ let showLabels = true;
 let currentTransform = d3.zoomIdentity;
 let globeRotate = [0, -15];
 let rafId = null;
+let lastHitTargets = []; // { iso, screenX, screenY }
 
-const svg = d3.select("#svg-map");
-const gLand = svg.append("g");
-const gCountryLabels = svg.append("g");
-const gCities = svg.append("g");
+const wrap = document.getElementById("map-wrap");
+const canvas = document.getElementById("map-canvas");
+const ctx = canvas.getContext("2d");
+let cssW = 0, cssH = 0, dpr = 1;
 let projection, geoPath, zoomBehavior;
 
 function scheduleRender() {
@@ -417,6 +400,15 @@ function scheduleRender() {
     rafId = null;
     renderAll();
   });
+}
+
+function resizeCanvas() {
+  cssW = wrap.clientWidth;
+  cssH = wrap.clientHeight;
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(1, Math.floor(cssW * dpr));
+  canvas.height = Math.max(1, Math.floor(cssH * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 function resolveIso(name) {
@@ -498,6 +490,7 @@ function saveAndRender() {
 }
 
 async function init() {
+  resizeCanvas();
   try {
     let topo = JSON.parse(localStorage.getItem(ATLAS_KEY));
     if (!topo) {
@@ -517,22 +510,20 @@ async function init() {
 }
 
 function updateProjection() {
-  const w = document.getElementById("map-wrap").clientWidth;
-  const h = document.getElementById("map-wrap").clientHeight;
   if (viewMode === "2d") {
-    const baseScale = Math.max(w / 4.3, h / 2.5);
+    const baseScale = Math.max(cssW / 4.3, cssH / 2.5);
     projection = d3.geoNaturalEarth1()
       .scale(baseScale)
-      .translate([w / 2, h * 0.54]);
+      .translate([cssW / 2, cssH * 0.54]);
   } else {
     const k = currentTransform.k || 1;
     projection = d3.geoOrthographic()
-      .scale(Math.min(w, h) * 0.48 * k)
-      .translate([w / 2, h / 2])
+      .scale(Math.min(cssW, cssH) * 0.48 * k)
+      .translate([cssW / 2, cssH / 2])
       .rotate(globeRotate)
       .clipAngle(90);
   }
-  geoPath = d3.geoPath().projection(projection);
+  geoPath = d3.geoPath().projection(projection).context(ctx);
 }
 
 function toScreenPoint(lonlat) {
@@ -546,7 +537,14 @@ function toScreenPoint(lonlat) {
 
 function renderAll() {
   if (!worldFeatures) return;
+  resizeCanvas();
   updateProjection();
+
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+  ctx.fillStyle = "#070d19";
+  ctx.fillRect(0, 0, cssW, cssH);
 
   const { visitCountByIso, plannedIsos, cityMarkers } = computeAggregations();
   const scaleFactor = viewMode === "2d" ? currentTransform.k : 1;
@@ -554,58 +552,60 @@ function renderAll() {
   document.getElementById("stats").textContent =
     `방문 ${visitCountByIso.size}개국 · 예정 ${plannedIsos.size}개국 · 도시 ${cityMarkers.length}곳`;
 
-  const landSel = gLand.selectAll("path.country").data(worldFeatures, d => d.id);
-  landSel.enter()
-    .append("path")
-    .attr("class", "country")
-    .merge(landSel)
-    .attr("d", geoPath)
-    .attr("transform", viewMode === "2d" ? `translate(${currentTransform.x.toFixed(2)},${currentTransform.y.toFixed(2)}) scale(${currentTransform.k.toFixed(4)})` : null)
-    .attr("stroke-width", `${Math.max(0.14, 0.55 / Math.sqrt(scaleFactor)).toFixed(2)}`)
-    .attr("fill", d => {
-      const iso = String(d.id).padStart(3, "0");
-      const vCount = visitCountByIso.get(iso) || 0;
-      const isPlanned = plannedIsos.has(iso);
+  ctx.save();
+  if (viewMode === "2d") {
+    ctx.translate(currentTransform.x, currentTransform.y);
+    ctx.scale(currentTransform.k, currentTransform.k);
+  }
 
-      if (filterMode === "visited") return vCount > 0 ? getVisitedColor(vCount) : "#1e293b";
-      if (filterMode === "planned") return isPlanned ? "#3b82f6" : "#1e293b";
-      if (vCount > 0) return getVisitedColor(vCount);
-      if (isPlanned) return "#3b82f6";
-      return "#1e293b";
-    })
-    .attr("stroke", d => {
-      const iso = String(d.id).padStart(3, "0");
-      const vCount = visitCountByIso.get(iso) || 0;
-      const isPlanned = plannedIsos.has(iso);
-      if (filterMode === "visited" && vCount > 0) return "#a7f3d0";
-      if (filterMode === "planned" && isPlanned) return "#93c5fd";
-      if (filterMode === "all") {
-        if (vCount > 0) return "#a7f3d0";
-        if (isPlanned) return "#93c5fd";
-      }
-      return "#334155";
-    })
-    .on("click", (_, d) => {
-      const iso = String(d.id).padStart(3, "0");
-      const matched = records.filter(r => (r.iso || resolveIso(r.country)) === iso);
-      const box = document.getElementById("info-box");
-      if (matched.length === 0) {
-        box.style.display = "none";
-        return;
-      }
-      const vCnt = visitCountByIso.get(iso) || 0;
-      const stText = vCnt > 0 ? `방문 ${vCnt}회` : "방문 예정";
-      const cities = Array.from(new Set(matched.flatMap(m => m.cities || []))).join(", ") || "-";
-      const notes = matched.map(m => m.note).filter(Boolean).join(" / ");
-      box.innerHTML = `<b>${matched[0].country}</b> · <span style="color:#6ee7b7">${stText}</span><br>도시: ${cities}${notes ? `<br><span style="color:#94a3b8">${notes}</span>` : ""}`;
-      box.style.display = "block";
-    });
+  worldFeatures.forEach(f => {
+    const iso = String(f.id).padStart(3, "0");
+    const vCount = visitCountByIso.get(iso) || 0;
+    const isPlanned = plannedIsos.has(iso);
 
-  gCountryLabels.selectAll("*").remove();
-  gCities.selectAll("*").remove();
+    let fill = "#1e293b";
+    let stroke = "#334155";
 
+    if (filterMode === "visited") {
+      if (vCount > 0) { fill = getVisitedColor(vCount); stroke = "#a7f3d0"; }
+    } else if (filterMode === "planned") {
+      if (isPlanned) { fill = "#3b82f6"; stroke = "#93c5fd"; }
+    } else {
+      if (vCount > 0) { fill = getVisitedColor(vCount); stroke = "#a7f3d0"; }
+      else if (isPlanned) { fill = "#3b82f6"; stroke = "#93c5fd"; }
+    }
+
+    ctx.beginPath();
+    geoPath(f);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.lineWidth = Math.max(0.16, 0.55 / Math.sqrt(scaleFactor));
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+  });
+
+  if (viewMode === "3d") {
+    ctx.beginPath();
+    geoPath({ type: "Sphere" });
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "#334155";
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  lastHitTargets = [];
+
+  // 확대 시 모든 국가명(영문) 표시 (줌이 커질수록 비율 축소)
   if (scaleFactor >= 1.8) {
     const cFontSize = Math.max(6.5, 11.5 / Math.pow(scaleFactor, 0.28));
+    ctx.font = `600 ${cFontSize.toFixed(1)}px -apple-system, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = "#070d19";
+    ctx.fillStyle = "#f8fafc";
+
     worldFeatures.forEach(f => {
       if (!f.properties || !f.properties.name) return;
       const centroid = d3.geoCentroid(f);
@@ -615,19 +615,17 @@ function renderAll() {
       }
       const pt = toScreenPoint(centroid);
       if (!pt) return;
-
-      gCountryLabels.append("text")
-        .attr("class", "country-label")
-        .attr("x", pt[0].toFixed(1))
-        .attr("y", pt[1].toFixed(1))
-        .attr("font-size", `${cFontSize.toFixed(1)}px`)
-        .text(f.properties.name);
+      const iso = String(f.id).padStart(3, "0");
+      lastHitTargets.push({ iso, x: pt[0], y: pt[1], radius: 14 });
+      ctx.strokeText(f.properties.name, pt[0], pt[1]);
+      ctx.fillText(f.properties.name, pt[0], pt[1]);
     });
   }
 
+  // 도시 마커 (1회 빨간 점, 2회 이상 숫자 배지) 및 확대 시 도시명
   if (filterMode !== "planned") {
     const canShowCityLabel = showLabels && (viewMode === "3d" || scaleFactor >= 1.5);
-    const lblFont = Math.max(7.5, 12 / Math.pow(scaleFactor, 0.25));
+    const lblFont = Math.max(7.5, 11.5 / Math.pow(scaleFactor, 0.25));
 
     cityMarkers.forEach(d => {
       if (viewMode === "3d") {
@@ -640,41 +638,110 @@ function renderAll() {
       const isMulti = d.count >= 2;
       const r = Math.max(2.6, (isMulti ? 8.5 : 4.6) / Math.pow(scaleFactor, 0.35));
       const strokeW = Math.max(0.8, 1.4 / Math.pow(scaleFactor, 0.25));
-      const badgeFont = Math.max(7, 10.5 / Math.pow(scaleFactor, 0.3));
 
-      const grp = gCities.append("g")
-        .attr("class", "city-marker")
-        .attr("transform", `translate(${pt[0].toFixed(1)}, ${pt[1].toFixed(1)})`);
+      lastHitTargets.push({ iso: d.iso, x: pt[0], y: pt[1], radius: Math.max(10, r + 6) });
 
-      grp.append("circle")
-        .attr("class", isMulti ? "city-badge" : "city-dot")
-        .attr("r", r.toFixed(2))
-        .attr("stroke-width", `${strokeW.toFixed(2)}`);
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], r, 0, Math.PI * 2);
+      ctx.fillStyle = "#ef4444";
+      ctx.fill();
+      ctx.lineWidth = strokeW;
+      ctx.strokeStyle = "#ffffff";
+      ctx.stroke();
 
       if (isMulti) {
-        grp.append("text")
-          .attr("class", "city-count")
-          .attr("font-size", `${badgeFont.toFixed(1)}px`)
-          .text(String(d.count));
+        const badgeFont = Math.max(7, 10.5 / Math.pow(scaleFactor, 0.3));
+        ctx.font = `700 ${badgeFont.toFixed(1)}px -apple-system, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText(String(d.count), pt[0], pt[1] + 0.3);
       }
 
       if (canShowCityLabel) {
-        grp.append("text")
-          .attr("class", "city-label")
-          .attr("x", (r + 4).toFixed(1))
-          .attr("y", "2")
-          .attr("font-size", `${lblFont.toFixed(1)}px`)
-          .text(d.city);
+        ctx.font = `600 ${lblFont.toFixed(1)}px -apple-system, Apple SD Gothic Neo, sans-serif`;
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = 2.6;
+        ctx.strokeStyle = "#070d19";
+        ctx.fillStyle = "#fef08a";
+        ctx.strokeText(d.city, pt[0] + r + 4, pt[1]);
+        ctx.fillText(d.city, pt[0] + r + 4, pt[1]);
       }
     });
   }
+
+  ctx.restore();
+}
+
+function handleMapTap(clientX, clientY) {
+  if (!worldFeatures || !projection) return;
+  const rect = canvas.getBoundingClientRect();
+  const sx = clientX - rect.left;
+  const sy = clientY - rect.top;
+
+  let hitIso = null;
+  for (let i = lastHitTargets.length - 1; i >= 0; i--) {
+    const t = lastHitTargets[i];
+    const dx = sx - t.x;
+    const dy = sy - t.y;
+    if (dx * dx + dy * dy <= t.radius * t.radius) {
+      hitIso = t.iso;
+      break;
+    }
+  }
+
+  if (!hitIso && viewMode === "2d") {
+    const inv = currentTransform.invert([sx, sy]);
+    const lonlat = projection.invert(inv);
+    if (lonlat && !Number.isNaN(lonlat[0])) {
+      const f = worldFeatures.find(feat => d3.geoContains(feat, lonlat));
+      if (f) hitIso = String(f.id).padStart(3, "0");
+    }
+  }
+
+  const box = document.getElementById("info-box");
+  if (!hitIso) {
+    box.style.display = "none";
+    return;
+  }
+
+  const { visitCountByIso } = computeAggregations();
+  const matched = records.filter(r => (r.iso || resolveIso(r.country)) === hitIso);
+  if (matched.length === 0) {
+    box.style.display = "none";
+    return;
+  }
+
+  const vCnt = visitCountByIso.get(hitIso) || 0;
+  const stText = vCnt > 0 ? `방문 ${vCnt}회` : "방문 예정";
+  const cities = Array.from(new Set(matched.flatMap(m => m.cities || []))).join(", ") || "-";
+  const notes = matched.map(m => m.note).filter(Boolean).join(" / ");
+  box.innerHTML = `<b>${matched[0].country}</b> · <span style="color:#6ee7b7">${stText}</span><br>도시: ${cities}${notes ? `<br><span style="color:#94a3b8">${notes}</span>` : ""}`;
+  box.style.display = "block";
 }
 
 function bindGestures() {
+  let startX = 0, startY = 0, moved = false;
+
+  canvas.addEventListener("pointerdown", (e) => {
+    startX = e.clientX;
+    startY = e.clientY;
+    moved = false;
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (Math.hypot(e.clientX - startX, e.clientY - startY) > 6) moved = true;
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    if (!moved) handleMapTap(e.clientX, e.clientY);
+  });
+
   zoomBehavior = d3.zoom().scaleExtent([1, 40]).on("zoom", (ev) => {
     currentTransform = ev.transform;
     scheduleRender();
   });
+
   const drag = d3.drag().on("drag", (ev) => {
     if (viewMode === "3d") {
       globeRotate = [
@@ -684,7 +751,8 @@ function bindGestures() {
       scheduleRender();
     }
   });
-  svg.call(zoomBehavior).call(drag);
+
+  d3.select(canvas).call(zoomBehavior).call(drag);
 }
 
 function setFilter(mode) {
@@ -706,7 +774,7 @@ function setMode(m) {
 function resetCamera() {
   currentTransform = d3.zoomIdentity;
   globeRotate = [0, -15];
-  if (zoomBehavior) svg.call(zoomBehavior.transform, d3.zoomIdentity);
+  if (zoomBehavior) d3.select(canvas).call(zoomBehavior.transform, d3.zoomIdentity);
   scheduleRender();
 }
 
